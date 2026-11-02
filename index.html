@@ -46,6 +46,9 @@ input{font-family:var(--display);font-size:22px;text-transform:uppercase;letter-
 #hud .bot button{pointer-events:auto;font-size:14px;padding:10px 14px;background:rgba(233,243,236,.18);color:var(--line);backdrop-filter:blur(6px)}
 #over{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:auto;background:var(--panel);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px;align-items:center;width:min(300px,84vw);text-align:center}
 #overTxt{font-family:var(--display);font-size:30px}
+#net{font-size:12px;font-weight:600;color:var(--muted);text-shadow:0 1px 3px #000}
+#net.ok{color:var(--green)}#net.bad{color:#ff6b6b}
+#bStart{position:absolute;left:50%;transform:translateX(-50%);bottom:max(120px,calc(env(safe-area-inset-bottom) + 112px));pointer-events:auto;font-size:22px;padding:16px 28px;box-shadow:0 6px 24px rgba(0,0,0,.4)}
 #hint{position:absolute;left:0;right:0;bottom:max(70px,calc(env(safe-area-inset-bottom) + 64px));text-align:center;font-size:14px;color:var(--line);text-shadow:0 1px 3px #000;opacity:.85}
 </style>
 </head>
@@ -81,8 +84,9 @@ input{font-family:var(--display);font-size:22px;text-transform:uppercase;letter-
   </section>
 
   <div id="hud" hidden>
-    <div class="top"><div id="score"><span class="me">0</span> · <span class="them">0</span></div><div id="msg"></div></div>
+    <div class="top"><div id="score"><span class="me">0</span> · <span class="them">0</span></div><div id="msg"></div><div id="net"></div></div>
     <div id="hint"></div>
+    <button id="bStart" class="hot" hidden>Start game</button>
     <div id="over" hidden><div id="overTxt"></div><button id="bRematch" class="hot">Rematch</button><p class="small" id="overSub"></p></div>
     <div class="bot"><button id="bExit">Exit</button><button id="bPlace">Re-center</button></div>
   </div>
@@ -104,7 +108,7 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let role=null;            // 'host' | 'guest' | 'solo'
 let peer=null,conn=null,connected=false;
 let mode=null;            // 'xr' | 'cam'
-let placed=false,started=false,guestReady=false;
+let placed=false,started=false,guestReady=false,lastRx=0,roomCode='',xrT0=0,lastHit=0;
 let myX=0;                // my paddle x in my own frame (+x = my right)
 const S={bx:0,bz:0,vx:0,vz:0,spd:0,hx:0,gx:0,sh:0,sg:0,ph:'wait',hits:0,dir:1,serveAt:0,win:null};
 let rxAt=0,cpuErr=0;
@@ -209,10 +213,19 @@ function hud(){
   const sc=S.sh+'-'+S.sg;if(sc!==lastScore){lastScore=sc;if(sc!=='0-0'){beep(300,.25,'sawtooth',.05);buzz([30,40,30]);}}
   let m='';
   if(mode==='xr'&&!placed)m='Point at the table and tap to place your court';
-  else if(S.ph==='wait'){m=role==='host'?(connected?'Waiting for your friend to place their court':'Waiting for your friend to join'):role==='guest'?'Waiting for the host':'';}
+  else if(S.ph==='wait'){
+    if(role==='host')m=!connected?'Waiting for your friend to join':(guestReady?'Both courts are down. Tap Start game.':'Your friend is placing their court. You can start anytime.');
+    else if(role==='guest')m=connected?'Court placed. The host starts the game.':'Connecting to the host…';}
   else if(S.ph==='serve'){const meSv=(role==='guest'?-S.dir:S.dir)>0;m=meSv?'Ball coming to you':'Ball going to them';}
   if(role!=='solo'&&!connected&&started&&role==='guest')m='Connection lost';
+  if(mode==='xr'&&(!placed||wantPlace)&&performance.now()-Math.max(xrT0,lastHit)>3000&&!reticle.visible)m='Can’t find the table surface yet. Tap anywhere to drop the court in front of you.';
   $('msg').textContent=m;
+  const alive=connected&&performance.now()-lastRx<3000;
+  const net=$('net');
+  if(role==='solo'){net.textContent='';}
+  else if(role==='host'){net.textContent=`Room ${roomCode} · `+(alive?'friend connected'+(guestReady?' · their court is down':' · placing their court'):connected?'friend not responding':'no friend yet');net.className=alive?'ok':'bad';}
+  else {net.textContent=`Room ${roomCode} · `+(alive?'connected to host':'not connected');net.className=alive?'ok':'bad';}
+  $('bStart').hidden=!(role==='host'&&S.ph==='wait'&&connected);
   const over=S.ph==='over';$('over').hidden=!over;
   if(over&&lastPh!=='over'){const iWon=(S.win==='h')===(role!=='guest');$('overTxt').textContent=iWon?'You win!':'You lose';
     $('overTxt').style.color=iWon?'var(--orange)':'var(--green)';beep(iWon?784:196,.45,'triangle',.08);
@@ -227,7 +240,7 @@ function hostGame(){
   if(typeof Peer==='undefined'){$('mStatus').textContent='Could not load the networking library. Check your connection.';return;}
   role='host';showLobby();const code=code4();$('roomCode').textContent='····';lstat('Opening room…');
   peer=new Peer(PREFIX+code,{debug:1});
-  peer.on('open',()=>{$('roomCode').textContent=code;const link=location.origin+location.pathname+'#'+code;$('qr').innerHTML='';
+  peer.on('open',()=>{roomCode=code;$('roomCode').textContent=code;const link=location.origin+location.pathname+'#'+code;$('qr').innerHTML='';
     try{new QRCode($('qr'),{text:link,width:170,height:170,correctLevel:QRCode.CorrectLevel.M});}catch(e){$('qr').hidden=true;}
     lstat('Waiting for your friend to join');});
   peer.on('connection',c=>{if(conn&&connected){c.close();return;}conn=c;wire();});
@@ -238,14 +251,14 @@ function joinGame(code){
   code=(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);
   if(code.length!==4){$('mStatus').textContent='Type the 4-letter code from your friend’s screen.';return;}
   if(typeof Peer==='undefined'){$('mStatus').textContent='Could not load the networking library. Check your connection.';return;}
-  role='guest';showLobby();$('guestCode').textContent=code;lstat('Connecting…');
+  role='guest';roomCode=code;showLobby();$('guestCode').textContent=code;lstat('Connecting…');
   peer=new Peer({debug:1});
   peer.on('open',()=>{conn=peer.connect(PREFIX+code,{serialization:'json'});wire();});
   peer.on('error',e=>{lstat(e.type==='peer-unavailable'?'No room with that code. Check it and try again.':'Network problem: '+e.type);});
 }
 function wire(){
-  conn.on('open',()=>{connected=true;lstat(role==='host'?'Friend joined. Tap Start AR.':'Connected. Tap Start AR.');});
-  conn.on('data',d=>{if(!d||typeof d!=='object')return;
+  conn.on('open',()=>{connected=true;lastRx=performance.now();lstat(role==='host'?'Friend joined. Tap Start AR.':'Connected. Tap Start AR.');});
+  conn.on('data',d=>{if(!d||typeof d!=='object')return;lastRx=performance.now();
     if(role==='host'&&d.t==='p'){S.gx=clamp(-Number(d.x)||0,-W/2+PW/2,W/2-PW/2);guestReady=!!d.r;}
     if(role==='guest'&&d.t==='s'){for(const k of['bx','bz','vx','vz','hx','sh','sg','ph','hits','dir','win'])if(k in d)S[k]=d[k];rxAt=performance.now();}});
   conn.on('close',()=>{connected=false;lstat('Your friend disconnected.');if(role==='host'&&S.ph!=='wait'){S.ph='wait';started&&($('msg').textContent='Your friend disconnected');}});
@@ -262,14 +275,24 @@ async function startXR(){
   }catch(e){startCam();return;}
   mode='xr';enterGame();
   renderer.xr.setReferenceSpaceType('local');await renderer.xr.setSession(xrSession);
-  const vs=await xrSession.requestReferenceSpace('viewer');hitSrc=await xrSession.requestHitTestSource({space:vs});
-  xrSession.addEventListener('select',()=>{if(placed&&court.visible&&!wantPlace)return;if(!reticle.visible)return;placeCourtAtReticle();});
+  xrT0=performance.now();
+  xrSession.addEventListener('select',()=>{if(placed&&court.visible&&!wantPlace)return;if(reticle.visible)placeCourtAtReticle();else placeFallback();});
+  try{const vs=await xrSession.requestReferenceSpace('viewer');hitSrc=await xrSession.requestHitTestSource({space:vs});}catch(e){hitSrc=null;}
   xrSession.addEventListener('end',()=>{location.href=location.pathname;});
   for(const b of ui.querySelectorAll('button'))b.addEventListener('beforexrselect',e=>e.preventDefault());
+  $('bStart').addEventListener('beforexrselect',e=>e.preventDefault());
   $('bPlace').textContent='Move court';
   $('hint').textContent=xrSession.domOverlayState?'Drag left and right to move your paddle':'Point your phone where you want your paddle';
 }
 let wantPlace=false;
+function placeFallback(){ // no surface found: drop the court ~35cm below the phone, in front of you
+  const cam=renderer.xr.getCamera(),c=new THREE.Vector3(),q=new THREE.Quaternion();cam.getWorldPosition(c);cam.getWorldQuaternion(q);
+  const f=new THREE.Vector3(0,0,-1).applyQuaternion(q),y=c.y-.35;let p;
+  if(f.y<-.25){const k=(y-c.y)/f.y;p=c.clone().add(f.multiplyScalar(Math.min(k,1.2)));p.y=y;}
+  else{const h=new THREE.Vector3(f.x,0,f.z);if(h.lengthSq()<1e-4)h.set(0,0,-1);h.normalize();p=c.clone().add(h.multiplyScalar(.45));p.y=y;}
+  court.position.copy(p);court.rotation.set(0,Math.atan2(c.x-p.x,c.z-p.z),0);
+  court.visible=true;placed=true;wantPlace=false;reticle.visible=false;beep(600,.08,'sine');
+}
 function placeCourtAtReticle(){
   const p=new THREE.Vector3().setFromMatrixPosition(reticle.matrix);
   const c=new THREE.Vector3();renderer.xr.getCamera().getWorldPosition(c);
@@ -316,6 +339,7 @@ $('bBack').onclick=()=>{location.href=location.pathname;};
 $('bAR').onclick=()=>{initAudio();if(xrOK)startXR();else startCam();};
 $('bExit').onclick=()=>{if(xrSession)xrSession.end();else location.href=location.pathname;};
 $('bPlace').onclick=()=>{if(mode==='xr'){wantPlace=true;placed=false;}else recenter=true;};
+$('bStart').onclick=()=>{initAudio();if(mode==='xr'&&!placed)placeFallback();begin();};
 $('bRematch').onclick=()=>{if(role==='host'&&!connected){$('overSub').textContent='Your friend isn’t connected.';return;}begin();};
 
 // ---- main loop ----
@@ -323,13 +347,12 @@ let last=performance.now();
 renderer.setAnimationLoop((t,frame)=>{
   const now=performance.now(),dt=Math.min(.033,(now-last)/1000);last=now;
   if(frame&&hitSrc&&(!placed||wantPlace)){const res=frame.getHitTestResults(hitSrc);
-    if(res.length){const pose=res[0].getPose(renderer.xr.getReferenceSpace());reticle.visible=true;reticle.matrix.fromArray(pose.transform.matrix);}else reticle.visible=false;}
+    if(res.length){const pose=res[0].getPose(renderer.xr.getReferenceSpace());reticle.visible=true;lastHit=performance.now();reticle.matrix.fromArray(pose.transform.matrix);}else reticle.visible=false;}
   if(mode==='xr'&&xrSession&&!xrSession.domOverlayState&&court.visible){ // aim control when touch overlay is unavailable
     const cam=renderer.xr.getCamera(),o=new THREE.Vector3(),q=new THREE.Quaternion();cam.getWorldPosition(o);cam.getWorldQuaternion(q);
     const dir=new THREE.Vector3(0,0,-1).applyQuaternion(q);const lo=court.worldToLocal(o.clone()),lp=court.worldToLocal(o.clone().add(dir));const ld=lp.sub(lo);
     if(ld.y<-1e-3){const k=-lo.y/ld.y;myX=clamp(lo.x+ld.x*k,-W/2+PW/2,W/2-PW/2);}}
   if(mode==='cam')camOrient();
-  if(role==='host'&&started&&S.ph==='wait'&&placed&&connected&&guestReady)begin();
   if(role==='host'||role==='solo')physics(dt);
   if(started){placeView();hud();}
   renderer.render(scene,camera);
