@@ -424,17 +424,18 @@ const Pad = {
     const w = rr && rr.alpha != null ? Math.hypot(rr.alpha||0, rr.beta||0, rr.gamma||0) : Math.hypot(...lin) * 45;
     D.leak = (D.leak||0)*.85 + vert*dt;
     if (D.state === "idle"){
-      if (w > 240 && now > D.cool){ D.state = "swing"; D.t0 = now; D.peak = w; D.vUp = D.leak; }
+      const soft = (this.g || {}).pm === "putt";
+      if (w > (soft ? 90 : 240) && now > D.cool){ D.state = "swing"; D.t0 = now; D.peak = w; D.vUp = D.leak; }
     } else {
       D.vUp += vert*dt; if (w > D.peak){ D.peak = w; D.tp = now; }
       if (w > D.peak*.98 && rr) D.pv = [rr.alpha||0, rr.beta||0, rr.gamma||0];
       if (w < D.peak*.55 || now - D.t0 > 360){
         const pre = this.poseAt(D.t0 - 70);
-        const power = clamp((D.peak - 220)/780, .08, 1);
+        const power = (this.g || {}).pm === "putt" ? clamp((D.peak - 80)/700, .02, 1) : clamp((D.peak - 220)/780, .08, 1);
         const spin = clamp(D.vUp/1.1, -1, 1);
         const shot = {power, spin, yaw:pre.yaw, pit:pre.pit, t:D.tp || now, yawEnd:this.pose.yaw, pv:D.pv};
         D.state = "idle";
-        if ((this.g || {}).pm === "pendulum"){
+        if ((this.g || {}).pm === "pendulum" || (this.g || {}).pm === "putt"){
           // underhand style: a backswing then a forward swing; throw on the forward one
           D.cool = now + 90;
           const P = D.pending;
@@ -523,12 +524,11 @@ const Pad = {
 };
 
 /* ==================== HOST (big screen) ==================== */
-const GAME_FILES = ["pingpong", "bowling", "tennis"];
+const GAME_FILES = ["pingpong", "bowling", "tennis", "golf"];
 const GAMES = [];
 function registerGame(def){ GAMES.push(def); }
 const SOON = [
   
-  {id:"golf", name:"Golf", icon:"⛳", tag:"Coming soon"},
   {id:"archery", name:"Archery", icon:"🎯", tag:"Coming soon"}
 ];
 
