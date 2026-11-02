@@ -63,6 +63,28 @@ a{color:var(--acc)}
 #overlay h2{font-size:clamp(1.8rem,5vw,3.4rem);margin:.1em 0 .3em}
 #topbtns{position:absolute;right:10px;bottom:10px;display:flex;gap:8px;opacity:.6}
 #topbtns button{padding:8px 12px;font-size:.85rem}
+/* season stage */
+.blob{display:inline-block;flex:none;border-radius:50% 50% 44% 44%;position:relative;vertical-align:middle;box-shadow:inset -4px -6px 0 rgba(0,0,0,.18)}
+.blob::before{content:"";position:absolute;left:22%;right:22%;top:24%;height:24%;background:radial-gradient(circle at 25% 55%,#111 0 18%,#fff 20% 46%,transparent 48%),radial-gradient(circle at 75% 55%,#111 0 18%,#fff 20% 46%,transparent 48%)}
+.stagehead h2{font-size:clamp(1.8rem,4.6vw,3.2rem);margin:.15em 0}
+.picks{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:18px}
+.pick{background:var(--panel);border-radius:22px;padding:18px 22px;min-width:190px;display:flex;flex-direction:column;align-items:center;gap:6px;border:4px solid transparent;transition:transform .12s}
+.pick .gi{font-size:3rem}.pick b{font-size:1.4rem}.pick small{color:var(--mute);font-weight:700}
+.pick.hl{border-color:var(--acc);transform:scale(1.06)}
+.pick .votes{display:flex;gap:6px;min-height:26px}
+.vsrow{display:flex;gap:22px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.vsn{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:1.3rem}
+.vs{font-size:2rem;font-weight:900;color:var(--acc)}
+.champ .blob{animation:hop .6s infinite alternate ease-in-out}
+@keyframes hop{to{transform:translateY(-16px)}}
+.stand{display:flex;flex-direction:column;gap:12px;width:min(640px,92vw);margin-top:18px}
+.srow{display:flex;align-items:center;gap:14px;background:var(--panel);border-radius:18px;padding:10px 16px}
+.srow .sn{width:7.5em;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow .bar{flex:1;height:14px;background:#0b1126;border-radius:8px;overflow:hidden}.srow .bar div{height:100%;border-radius:8px;transition:width .6s}
+.srow .sp{font-size:1.5rem;min-width:1.6em}.srow .sg{color:var(--good);font-weight:900;min-width:2em}
+#pvote{display:flex;flex-direction:column;gap:10px;width:100%;max-width:420px}
+#pvote button{font-size:1.3rem;padding:18px}
+#pvote button.on{background:var(--acc);color:#1a1a2e}
 /* pad */
 #pad{touch-action:none;user-select:none;-webkit-user-select:none}
 #pad .top{display:flex;align-items:center;gap:10px;padding:14px 16px;font-weight:900;font-size:1.1rem}
@@ -109,6 +131,7 @@ a{color:var(--acc)}
       <h1 style="font-size:2.2rem">Pocket <span>Sports</span></h1>
       <span class="mute" style="margin-left:auto"><a href="../">Bumper Blobs</a></span>
     </div>
+    <div class="row" style="justify-content:flex-start;margin-top:10px"><button id="mode-free" class="acc">Free Play</button><button id="mode-season">Season</button></div>
     <div class="games" id="games"></div>
     <div id="howto" class="mute"></div>
     <div class="opts" id="opts"></div>
@@ -130,6 +153,11 @@ a{color:var(--acc)}
   <div id="topbtns"><button id="btn-full">Fullscreen</button><button id="btn-quit">Lobby</button></div>
 </div>
 
+<div id="stage" class="screen" hidden><div class="center">
+  <div id="stage-body"></div>
+  <div id="stage-foot" class="row"></div>
+</div></div>
+
 <div id="join" class="screen" hidden><div class="center" style="max-width:420px;margin:0 auto">
   <h1 style="font-size:2.4rem">Pocket <span>Sports</span></h1>
   <input id="j-code" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;text-align:center;font-size:1.6rem;letter-spacing:.2em">
@@ -149,6 +177,7 @@ a{color:var(--acc)}
       <button id="btn-cal" hidden>Recenter</button>
       <button id="btn-mode">Use swipe instead</button>
     </div>
+    <div id="pvote" hidden></div>
     <button id="btn-go" class="big acc" hidden>Start</button>
     <div class="mute small" id="phint" style="text-align:center;max-width:420px"></div>
   </div>
@@ -271,7 +300,7 @@ class PadNet {
   send(inp, force){ this.inp = inp; this.flush(!!force); }
   flush(force){
     const i = this.inp; if (!i || !this.conn || !this.conn.open) return;
-    const m = {yaw:Math.round(i.yaw), pit:Math.round(i.pit), sw:i.sw.slice(0,5).map(v => +(+v).toFixed(3)), go:i.go, mo:i.mo};
+    const m = {yaw:Math.round(i.yaw), pit:Math.round(i.pit), sw:i.sw.slice(0,5).map(v => +(+v).toFixed(3)), go:i.go, mo:i.mo, vt:i.vt};
     const key = JSON.stringify(m);
     const now = performance.now();
     if (!force && key === this.lastKey && now - this.lastSend < 33) return;
@@ -308,7 +337,7 @@ function startJoin(code){
 }
 
 const Pad = {
-  inp:{yaw:0, pit:0, sw:[0,0,0,0,0,0], go:0, mo:"m"},
+  inp:{yaw:0, pit:0, sw:[0,0,0,0,0,0], go:0, mo:"m", vt:-1},
   mode:"m", motion:"off", cal:null, pose:{yaw:0, pit:0}, poseHist:[], hitSeen:-1, ptSeen:-1, g:{}, me:null,
   det:{state:"idle", peak:0, t0:0, vUp:0, cool:0, g:null},
   async start(code, name){
@@ -450,7 +479,18 @@ const Pad = {
       $("pdot").style.background = me.col || "#888";
       $("pstatus").innerHTML = esc(me.msg || "") + (me.sub ? "<small>" + esc(me.sub) + "</small>" : "");
       const act = me.act;
-      $("btn-go").hidden = !act; $("btn-go").textContent = act === "rematch" ? "Rematch" : "Start " + (g.gn || "game");
+      const labels = {rematch:"Rematch", next:"Next round", again:"Play another season", start:g.sea ? "Start" : "Start " + (g.gn || "game")};
+      if (this.lastAct !== act){ this.lastAct = act; if (act !== "vote") this.inp.vt = -1; }
+      $("btn-go").hidden = !act || act === "vote"; $("btn-go").textContent = labels[act] || "Go";
+      const pv = $("pvote");
+      if (act === "vote" && Array.isArray(g.vote)){
+        const key = g.vote.join("|") + "#" + me.vt;
+        if (pv.dataset.key !== key){
+          pv.dataset.key = key; pv.innerHTML = "";
+          g.vote.forEach((name, k) => { const b = document.createElement("button"); b.textContent = name; if (me.vt === k) b.className = "on"; b.onclick = () => { this.inp.vt = k; this.net.send(this.inp, true); [...pv.children].forEach((c, j) => c.className = j === k ? "on" : ""); }; pv.appendChild(b); });
+        }
+        pv.hidden = false;
+      } else { pv.hidden = true; pv.dataset.key = ""; }
     }
     const m = this.mode === "m";
     $("btn-motion").hidden = !(m && this.motion === "ask");
@@ -465,6 +505,7 @@ const Pad = {
 };
 
 /* ==================== HOST (big screen) ==================== */
+const GAME_FILES = ["pingpong"];
 const GAMES = [];
 function registerGame(def){ GAMES.push(def); }
 const SOON = [
@@ -497,32 +538,40 @@ const Sfx = {
   beep(hi){ this.tone(hi?880:520, hi?880:520, .14, "square", .07); }
 };
 
+const PLACE_PTS = {1:[3], 2:[3,1], 3:[3,2,1], 4:[3,2,1,0]};
+const GOALS = [{k:"p10", t:"First to 10 points"}, {k:"p6", t:"First to 6 points"}, {k:"r3", t:"3 rounds"}, {k:"r5", t:"5 rounds"}, {k:"r8", t:"8 rounds"}];
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random()*(i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const blobHtml = (col, size=46) => `<span class="blob" style="background:${col};width:${size}px;height:${Math.round(size*1.12)}px"></span>`;
+
 const Core = {
-  seats:[], phase:"home", gt:0, game:null, gameDef:null, sel:null, opts:{}, net:null, huds:[], rects:[],
+  seats:[], phase:"home", gt:0, game:null, gameDef:null, sel:null, opts:{}, net:null, huds:[], rects:[], playing:[0,1],
+  mode:"free", season:null, sopt:{goal:"p10", pick:"vote"}, timers:[],
   async init(){
     show("lobby"); $("roomcode").textContent = "····";
     $("lobbyerr").textContent = "Loading…";
     try {
       await loadScript("lib/three.min.js");
-      for (const f of ["pingpong"]) await loadScript("games/" + f + ".js");
+      for (const f of GAME_FILES) await loadScript("games/" + f + ".js");
     } catch(e){ $("lobbyerr").textContent = e.message; return; }
     $("lobbyerr").textContent = "";
-    for (let i=0;i<MAX_SEATS;i++) this.seats.push({i, cid:null, name:"", connected:false, yaw:0, pit:0, swSeen:null, goSeen:null, rtt:90, mo:"m", hit:0, pt:0, col:SEAT_COLORS[i]});
+    for (let i=0;i<MAX_SEATS;i++) this.seats.push({i, cid:null, name:"", connected:false, yaw:0, pit:0, swSeen:null, goSeen:null, vt:-1, rtt:90, mo:"m", hit:0, pt:0, col:SEAT_COLORS[i]});
     this.sel = GAMES[0];
     this.phase = "lobby";
     this.renderer = new THREE.WebGLRenderer({canvas:$("view"), antialias:true});
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
     this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     window.addEventListener("resize", () => this.layout());
-    $("btn-start").onclick = () => this.startGame();
-    $("btn-rematch").onclick = () => this.startGame();
+    $("btn-start").onclick = () => this.startFromLobby();
+    $("btn-rematch").onclick = () => this.advance();
     $("btn-lobby").onclick = () => this.toLobby();
     $("btn-quit").onclick = () => this.toLobby();
     $("btn-full").onclick = () => { try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); } catch(e){} };
+    $("mode-free").onclick = () => { this.mode = "free"; this.renderLobby(); };
+    $("mode-season").onclick = () => { this.mode = "season"; this.renderLobby(); };
     window.addEventListener("keydown", e => {
-      if (e.code === "Space" || e.code === "Enter"){ if (this.phase === "lobby" || this.phase === "over"){ e.preventDefault(); this.startGame(); } }
+      if (e.code === "Space" || e.code === "Enter"){ if (["lobby","over","roundres","seasonend"].includes(this.phase)){ e.preventDefault(); this.advance(); } }
       if (e.code === "Escape" && this.phase !== "lobby") this.toLobby();
-      if (this.game && this.game.key) this.game.key(e);
+      if (this.game && this.game.key && this.phase === "play") this.game.key(e);
     });
     this.renderLobby();
     this.net = new HostNet({hello:(c,i) => this.hello(c,i), input:(c,m,r) => this.input(c,m,r), leave:c => this.leave(c)});
@@ -537,24 +586,28 @@ const Core = {
     this.last = performance.now(); this.acc = 0; this.sendT = 0;
     requestAnimationFrame(t => this.frame(t));
   },
-  /* seats */
+  later(ms, f){ const id = setTimeout(() => { this.timers = this.timers.filter(x => x !== id); f(); }, ms); this.timers.push(id); },
+  clearTimers(){ for (const id of this.timers) clearTimeout(id); this.timers = []; },
+
+  /* ---------- seats ---------- */
   seatOf(cid){ return this.seats.find(s => s.cid === cid); },
-  activeCount(){ return this.seats.filter(s => s.cid && s.connected).length; },
+  humans(){ return this.seats.filter(s => s.cid && s.connected).map(s => s.i); },
   hello(cid, info){
     const name = cleanName(info.name) || "Player";
     let s = this.seatOf(cid);
     if (s){ s.connected = true; s.name = name; s.swSeen = null; s.goSeen = null; this.renderLobby(); return true; }
-    const max = this.phase === "lobby" ? MAX_SEATS : (this.gameDef ? this.gameDef.max : MAX_SEATS);
-    s = this.seats.slice(0, max).find(x => !x.cid);
+    // mid-season or mid-match, a newcomer may only take a seat nobody is using
+    const inUse = new Set(this.season ? this.season.players : (this.phase === "lobby" ? [] : this.playing));
+    s = this.seats.find(x => !x.cid && (this.phase === "lobby" || !inUse.has(x.i) || !this.season));
     if (!s) return false;
-    Object.assign(s, {cid, name, connected:true, swSeen:null, goSeen:null, yaw:0, pit:0, hit:0, pt:0});
+    Object.assign(s, {cid, name, connected:true, swSeen:null, goSeen:null, vt:-1, yaw:0, pit:0, hit:0, pt:0});
     this.renderLobby(); Sfx.beep(true);
     return true;
   },
   leave(cid){
     const s = this.seatOf(cid); if (!s) return;
     if (this.phase === "lobby"){ s.cid = null; s.name = ""; s.connected = false; }
-    else s.connected = false;
+    else s.connected = false; // the computer covers until they come back
     this.renderLobby();
   },
   input(cid, m, rtt){
@@ -569,62 +622,270 @@ const Core = {
       const ago = clamp(+sw[5]||0, 0, 400);
       const lag = clamp(rtt/2 + ago, 0, 450)/1000;
       const swing = {power:clamp(+sw[1]||0, 0, 1), spin:clamp(+sw[2]||0, -1, 1), yaw:clamp(+sw[3]||0, -90, 90), pit:clamp(+sw[4]||0, -90, 90), lag, touch:s.mo === "t"};
-      if (this.game && this.phase === "play" && s.i < this.gameDef.max) this.game.swing(s.i, swing);
+      const slot = this.playing.indexOf(s.i);
+      if (this.game && this.phase === "play" && slot >= 0) this.game.swing(slot, swing);
     }
+    if (typeof m.vt === "number" && this.phase === "pick" && this.season && this.season.voting) this.vote(s.i, m.vt|0);
     const go = m.go|0;
     if (s.goSeen === null) s.goSeen = go;
-    else if (go !== s.goSeen){ s.goSeen = go; if (this.phase === "lobby" || this.phase === "over") this.startGame(); }
+    else if (go !== s.goSeen){ s.goSeen = go; if (["lobby","over","roundres","seasonend"].includes(this.phase)) this.advance(); }
   },
   isBot(i){ const s = this.seats[i]; return !s.cid || !s.connected; },
-  nameOf(i){ const s = this.seats[i]; return s.cid ? s.name : "CPU"; },
-  /* lobby */
+  seatName(i){
+    const s = this.seats[i]; if (s.cid) return s.name;
+    const roster = this.season ? this.season.players : this.playing;
+    const cpus = roster.filter(j => !this.seats[j].cid);
+    return cpus.length > 1 ? "CPU " + (cpus.indexOf(i) + 1) : "CPU";
+  },
+  nameOf(i){ return this.seatName(i); },
+  pSeat(slot){ return this.seats[this.playing[slot]]; },
+  pBot(slot){ return this.isBot(this.playing[slot]); },
+  pName(slot){ return this.seatName(this.playing[slot]); },
+
+  /* ---------- lobby ---------- */
   renderLobby(){
-    if (this.phase !== "lobby" && this.phase !== "loading") return;
-    const max = this.sel ? this.sel.max : 2;
+    if (this.phase !== "lobby") return;
+    const season = this.mode === "season";
+    $("mode-free").classList.toggle("acc", !season); $("mode-season").classList.toggle("acc", season);
+    const max = season ? MAX_SEATS : (this.sel ? this.sel.max : 2);
+    const fill = season ? 2 : (this.sel ? (this.sel.fill || this.sel.max) : 2);
+    const hs = this.humans();
     $("players").innerHTML = this.seats.map((s, i) => {
-      const used = i < max;
-      return `<div class="pl ${s.cid ? "" : "empty"}" style="${used ? "" : "opacity:.25"}"><div class="dot" style="background:${s.col}"></div>${s.cid ? esc(s.name) + (s.connected ? "" : " (away)") : (used ? "CPU" : "—")}</div>`;
+      const cpu = !s.cid && i < Math.max(fill, hs.length) && hs.length < fill && i < max;
+      return `<div class="pl ${s.cid ? "" : "empty"}">${blobHtml(s.col, 26)}${s.cid ? esc(s.name) + (s.connected ? "" : " (away)") : (cpu ? "CPU" : "Open seat")}</div>`;
     }).join("");
     const all = [...GAMES.map(g => Object.assign({ready:true}, g)), ...SOON];
-    $("games").innerHTML = all.map(g => `<div class="gcard ${g.ready ? "" : "soon"} ${this.sel && this.sel.id === g.id ? "sel" : ""}" data-id="${g.id}"><div class="gi">${g.icon}</div><b>${esc(g.name)}</b><small>${esc(g.tag || "")}</small></div>`).join("");
+    $("games").innerHTML = all.map(g => `<div class="gcard ${g.ready ? "" : "soon"} ${!season && this.sel && this.sel.id === g.id ? "sel" : ""}" data-id="${g.id}"><div class="gi">${g.icon}</div><b>${esc(g.name)}</b><small>${esc(season ? (g.ready ? "In the rotation" : "Coming soon") : (g.tag || ""))}</small></div>`).join("");
     for (const el of document.querySelectorAll(".gcard")){
-      el.onclick = () => { const g = GAMES.find(x => x.id === el.dataset.id); if (g){ this.sel = g; this.renderLobby(); } };
+      el.onclick = () => { const g = GAMES.find(x => x.id === el.dataset.id); if (g){ this.sel = g; this.mode = "free"; this.renderLobby(); } };
     }
-    const g = this.sel;
-    $("howto").innerHTML = g ? esc(g.howto) : "";
     $("opts").innerHTML = "";
-    if (g && g.options) for (const o of g.options){
-      if (this.opts[o.key] === undefined) this.opts[o.key] = o.values[0];
-      const b = document.createElement("button"); b.textContent = o.label + ": " + this.opts[o.key];
-      b.onclick = () => { const i = o.values.indexOf(this.opts[o.key]); this.opts[o.key] = o.values[(i+1) % o.values.length]; this.renderLobby(); };
-      $("opts").appendChild(b);
+    const addOpt = (label, get, next) => { const b = document.createElement("button"); b.textContent = label + ": " + get(); b.onclick = () => { next(); this.renderLobby(); }; $("opts").appendChild(b); };
+    if (season){
+      $("howto").innerHTML = "A season hops between short minigames. Each round you vote on the next game from your phones (or let the dice pick), play a quick version of it, and earn points for your placing: 3 for first, then 2, 1, 0. With three players, one sits each 1v1 out in turn. With four, 1v1 games become a mini bracket.";
+      addOpt("Goal", () => GOALS.find(g => g.k === this.sopt.goal).t, () => { const i = GOALS.findIndex(g => g.k === this.sopt.goal); this.sopt.goal = GOALS[(i + 1) % GOALS.length].k; });
+      addOpt("Next game", () => this.sopt.pick === "vote" ? "Players vote" : "Random roll", () => { this.sopt.pick = this.sopt.pick === "vote" ? "random" : "vote"; });
+      $("btn-start").textContent = "Start season";
+    } else {
+      const g = this.sel;
+      $("howto").innerHTML = g ? esc(g.howto) : "";
+      if (g && g.options) for (const o of g.options){
+        if (this.opts[o.key] === undefined) this.opts[o.key] = o.values[0];
+        addOpt(o.label, () => this.opts[o.key], () => { const i = o.values.indexOf(this.opts[o.key]); this.opts[o.key] = o.values[(i + 1) % o.values.length]; });
+      }
+      $("btn-start").textContent = g ? "Play " + g.name : "Start";
     }
-    $("btn-start").textContent = g ? "Start " + g.name : "Start";
   },
-  startGame(){
-    if (!this.sel) return;
-    Sfx.unlock();
+  startFromLobby(){ if (this.mode === "season") this.startSeason(); else this.startFree(); },
+  advance(){ // Space / phone button / Rematch: whatever "go on" means right now
+    if (this.phase === "lobby") return this.startFromLobby();
+    if (this.phase === "over") return this.startFree();
+    if (this.phase === "roundres") return this.nextRound();
+    if (this.phase === "seasonend") return this.startSeason();
+  },
+  rosterFor(def, fillTo){
+    const p = this.humans().slice(0, def.max);
+    for (const s of this.seats) if (p.length < fillTo && !s.cid && !p.includes(s.i)) p.push(s.i);
+    return p;
+  },
+  startFree(){
+    const def = this.sel; if (!def) return;
+    this.season = null;
+    this.runMatch(def, this.rosterFor(def, def.fill || def.max), Object.assign({}, this.opts));
+  },
+  runMatch(def, players, opts){
+    Sfx.unlock(); this.clearTimers();
     if (this.game){ this.game.destroy(); this.game = null; }
-    this.gameDef = this.sel;
-    // free seats beyond this game's limit go back to the lobby list but don't play
+    this.gameDef = def; this.playing = players.slice();
     show("game"); $("overlay").hidden = true;
     this.phase = "play";
-    this.game = this.gameDef.create(this, Object.assign({}, this.opts));
+    this.game = def.create(this, opts);
     this.layout();
     this.game.begin();
   },
-  finish(title, sub){
-    this.phase = "over";
-    $("ovtitle").textContent = title; $("ovsub").textContent = sub || ""; $("overlay").hidden = false;
-    Sfx.win();
+  /* games call this with slots from best to worst (an inner array = tie) */
+  finish(ranking, title, sub){
+    if (this.phase !== "play") return;
+    const seatsRank = ranking.map(r => Array.isArray(r) ? r.map(x => this.playing[x]) : this.playing[r]);
+    $("ovtitle").textContent = title; $("ovsub").textContent = sub || "";
+    $("overlay").hidden = false; Sfx.win();
+    if (!this.season){
+      this.phase = "over";
+      $("btn-rematch").hidden = false; $("btn-rematch").textContent = "Rematch"; $("btn-lobby").textContent = "Pick another game";
+    } else {
+      this.phase = "matchend";
+      $("btn-rematch").hidden = true; $("btn-lobby").textContent = "End season";
+      this.later(3200, () => this.matchDone(seatsRank));
+    }
   },
   toLobby(){
+    this.clearTimers();
     if (this.game){ this.game.destroy(); this.game = null; }
-    this.phase = "lobby"; show("lobby");
+    this.season = null; this.phase = "lobby"; show("lobby");
     for (const s of this.seats) if (s.cid && !s.connected){ s.cid = null; s.name = ""; }
     this.renderLobby();
   },
-  /* views + hud */
+
+  /* ---------- season ---------- */
+  startSeason(){
+    if (this.game){ this.game.destroy(); this.game = null; }
+    const players = this.humans();
+    for (const s of this.seats) if (players.length < 2 && !s.cid) players.push(s.i);
+    this.season = {players, pts:Object.fromEntries(players.map(i => [i, 0])), gained:{}, round:0, sat:{}, recent:[]};
+    this.playing = players.slice();
+    Sfx.unlock(); this.nextRound();
+  },
+  goal(){ const g = this.sopt.goal; return {type:g[0], n:+g.slice(1)}; },
+  seasonOver(){
+    const S = this.season, g = this.goal();
+    if (g.type === "p") return Math.max(...Object.values(S.pts)) >= g.n;
+    return S.round >= g.n;
+  },
+  nextRound(){
+    const S = this.season; if (!S) return;
+    this.clearTimers();
+    if (this.game){ this.game.destroy(); this.game = null; }
+    if (this.seasonOver()) return this.seasonEnd();
+    S.round++;
+    const pool = GAMES.filter(g => g.season && (g.min || 1) <= S.players.length);
+    // avoid repeating the last two games when there is enough variety
+    let fresh = pool.filter(g => !S.recent.slice(-2).includes(g.id)); if (fresh.length < Math.min(3, pool.length)) fresh = pool;
+    S.choices = shuffle(fresh).slice(0, 3);
+    S.votes = {}; for (const s of this.seats) s.vt = -1;
+    this.phase = "pick"; show("stage");
+    if (this.sopt.pick === "vote" && S.choices.length > 1 && this.humans().length > 0){
+      S.voting = true; S.pickEnd = performance.now() + 12000;
+      this.renderPick();
+      this.pickTick = setInterval(() => { if (this.phase !== "pick"){ clearInterval(this.pickTick); return; } this.renderPick(); if (performance.now() >= S.pickEnd) this.resolvePick(); }, 250);
+    } else {
+      S.voting = false; this.rollPick();
+    }
+  },
+  vote(i, idx){
+    const S = this.season; if (idx < 0 || idx >= S.choices.length || !S.players.includes(i)) return;
+    S.votes[i] = idx; this.seats[i].vt = idx; Sfx.beep(true); this.renderPick();
+    const voters = this.humans().filter(h => S.players.includes(h));
+    if (voters.every(h => S.votes[h] !== undefined)) S.pickEnd = Math.min(S.pickEnd, performance.now() + 900);
+  },
+  resolvePick(){
+    const S = this.season; if (!S || this.phase !== "pick" || S.resolving) return;
+    S.resolving = true; clearInterval(this.pickTick);
+    const counts = S.choices.map((_, k) => Object.values(S.votes).filter(v => v === k).length);
+    const top = Math.max(...counts), best = counts.map((c, k) => c === top ? k : -1).filter(k => k >= 0);
+    const k = best[Math.floor(Math.random()*best.length)];
+    S.voting = false; this.renderPick(k);
+    this.later(1600, () => { S.resolving = false; this.beginRound(S.choices[k]); });
+  },
+  rollPick(){
+    const S = this.season, final = Math.floor(Math.random()*S.choices.length);
+    let step = 0; const total = 12 + final + S.choices.length*2;
+    const tick = () => {
+      if (this.phase !== "pick") return;
+      const k = step % S.choices.length; this.renderPick(k, step < total); Sfx.beep(false);
+      if (step++ < total) this.later(70 + step*12, tick);
+      else { Sfx.beep(true); this.later(1300, () => this.beginRound(S.choices[k])); }
+    };
+    tick();
+  },
+  renderPick(hl = -1, rolling = false){
+    const S = this.season, left = Math.max(0, Math.ceil((S.pickEnd - performance.now())/1000));
+    const counts = S.choices.map((_, k) => Object.values(S.votes).filter(v => v === k).length);
+    const head = S.voting ? `Vote for round ${S.round}` : (rolling ? `Rolling round ${S.round}…` : `Round ${S.round}`);
+    $("stage-body").innerHTML = `<div class="stagehead"><div class="mute">${esc(this.goalText())}</div><h2>${head}</h2>${S.voting ? `<div class="mute">Pick on your phone · ${left}s</div>` : ""}</div>
+      <div class="picks">${S.choices.map((g, k) => `<div class="pick ${hl === k ? "hl" : ""}"><div class="gi">${g.icon}</div><b>${esc(g.name)}</b><small>${esc(this.formatText(g))}</small>
+        <div class="votes">${Object.entries(S.votes).filter(([, v]) => v === k).map(([i]) => blobHtml(this.seats[i].col, 22)).join("")}</div></div>`).join("")}</div>`;
+    $("stage-foot").innerHTML = "";
+  },
+  goalText(){ return GOALS.find(g => g.k === this.sopt.goal).t; },
+  formatText(def){
+    const n = this.season.players.length;
+    if (n <= def.max) return def.max === 2 ? "1v1" : "Everyone plays";
+    if (def.max === 2 && n === 3) return "1v1, one sits out";
+    if (def.max === 2 && n === 4) return "Mini bracket";
+    return "Everyone plays";
+  },
+  beginRound(def){
+    const S = this.season, P = shuffle(S.players), n = P.length;
+    S.def = def; S.mi = 0; S.semiW = []; S.semiL = []; S.recent.push(def.id); S.sitter = null;
+    if (n <= def.max) S.matches = [{players:P, kind:"all"}];
+    else if (def.max === 2 && n === 3){
+      const minSat = Math.min(...P.map(i => S.sat[i] || 0));
+      const sitter = P.find(i => (S.sat[i] || 0) === minSat);
+      S.sitter = sitter; S.matches = [{players:P.filter(i => i !== sitter), kind:"single"}];
+    } else if (def.max === 2 && n === 4) S.matches = [{players:[P[0], P[1]], kind:"semi", label:"Semifinal 1"}, {players:[P[2], P[3]], kind:"semi", label:"Semifinal 2"}, {kind:"final", label:"Final"}];
+    else S.matches = [{players:P.slice(0, def.max), kind:"all"}];
+    this.playNextMatch();
+  },
+  playNextMatch(){
+    const S = this.season, m = S.matches[S.mi];
+    if (m.kind === "final") m.players = S.semiW.slice(0, 2);
+    this.phase = "intro"; show("stage");
+    const vs = m.players.map(i => `<span class="vsn">${blobHtml(this.seats[i].col, 40)}<b>${esc(this.seatName(i))}</b></span>`).join(m.players.length === 2 ? '<span class="vs">vs</span>' : "");
+    $("stage-body").innerHTML = `<div class="stagehead"><div class="mute">Round ${S.round}${m.label ? " · " + esc(m.label) : ""}</div><h2>${S.def.icon} ${esc(S.def.name)}</h2><div class="mute">${esc(S.def.seasonRules || "")}</div></div>
+      <div class="vsrow">${vs}</div>${S.sitter != null ? `<div class="mute" style="margin-top:14px">${esc(this.seatName(S.sitter))} sits this one out (and still gets 1 point)</div>` : ""}`;
+    $("stage-foot").innerHTML = "";
+    this.later(3000, () => this.runMatch(S.def, m.players, Object.assign({}, S.def.season || {})));
+  },
+  matchDone(rank){
+    const S = this.season; if (!S) return;
+    const m = S.matches[S.mi]; m.rank = rank;
+    if (m.kind === "semi"){ S.semiW.push(this.firstOf(rank)); S.semiL.push(...this.flat(rank).filter(i => i !== this.firstOf(rank))); }
+    S.mi++;
+    if (S.mi < S.matches.length) return this.playNextMatch();
+    this.roundDone();
+  },
+  firstOf(rank){ return Array.isArray(rank[0]) ? rank[0][0] : rank[0]; },
+  flat(rank){ return rank.flatMap(r => Array.isArray(r) ? r : [r]); },
+  roundDone(){
+    const S = this.season, gained = {};
+    for (const i of S.players) gained[i] = 0;
+    const m0 = S.matches[0];
+    if (m0.kind === "all"){
+      const n = this.flat(m0.rank).length, table = PLACE_PTS[n] || PLACE_PTS[4];
+      let place = 0;
+      for (const r of m0.rank){ const grp = Array.isArray(r) ? r : [r]; for (const i of grp) gained[i] = table[place] || 0; place += grp.length; }
+    } else if (m0.kind === "single"){
+      const w = this.firstOf(m0.rank); gained[w] = 3;
+      for (const i of this.flat(m0.rank)) if (i !== w) gained[i] = 1;
+      gained[S.sitter] = 1; S.sat[S.sitter] = (S.sat[S.sitter] || 0) + 1;
+    } else {
+      const fin = S.matches[2].rank, w = this.firstOf(fin);
+      for (const i of S.semiL) gained[i] = 1;
+      for (const i of this.flat(fin)) gained[i] = i === w ? 3 : 2;
+    }
+    for (const i of S.players) S.pts[i] += gained[i];
+    S.gained = gained;
+    if (this.game){ this.game.destroy(); this.game = null; }
+    this.phase = this.seasonOver() ? "seasonend" : "roundres";
+    if (this.phase === "seasonend") return this.seasonEnd();
+    this.renderStandings();
+    this.later(9000, () => { if (this.phase === "roundres") this.nextRound(); });
+  },
+  standingsHtml(){
+    const S = this.season, max = Math.max(1, this.goal().type === "p" ? this.goal().n : Math.max(...Object.values(S.pts)));
+    const order = S.players.slice().sort((a, b) => S.pts[b] - S.pts[a]);
+    return `<div class="stand">${order.map((i, k) => `<div class="srow">${blobHtml(this.seats[i].col, 44)}<b class="sn">${esc(this.seatName(i))}</b>
+      <div class="bar"><div style="width:${Math.min(100, S.pts[i]/max*100)}%;background:${this.seats[i].col}"></div></div><b class="sp">${S.pts[i]}</b><span class="sg">${S.gained[i] ? "+" + S.gained[i] : ""}</span></div>`).join("")}</div>`;
+  },
+  renderStandings(){
+    const S = this.season;
+    show("stage");
+    $("stage-body").innerHTML = `<div class="stagehead"><div class="mute">${esc(this.goalText())}</div><h2>Standings after round ${S.round}</h2></div>${this.standingsHtml()}`;
+    $("stage-foot").innerHTML = `<button class="big acc" id="btn-next">Next round</button> <button class="big" id="btn-end">End season</button>`;
+    $("btn-next").onclick = () => this.nextRound(); $("btn-end").onclick = () => this.toLobby();
+  },
+  seasonEnd(){
+    const S = this.season; this.phase = "seasonend"; show("stage"); this.clearTimers();
+    const top = Math.max(...Object.values(S.pts)), winners = S.players.filter(i => S.pts[i] === top);
+    $("stage-body").innerHTML = `<div class="stagehead"><div class="mute">Season over after ${S.round} round${S.round === 1 ? "" : "s"}</div>
+      <h2 style="font-size:clamp(2rem,6vw,4rem)">${winners.map(i => esc(this.seatName(i))).join(" & ")} win${winners.length === 1 ? "s" : ""} the season!</h2>
+      <div class="vsrow">${winners.map(i => `<span class="vsn champ">${blobHtml(this.seats[i].col, 90)}</span>`).join("")}</div></div>${this.standingsHtml()}`;
+    $("stage-foot").innerHTML = `<button class="big acc" id="btn-again">Play another season</button> <button class="big" id="btn-end">Back to lobby</button>`;
+    $("btn-again").onclick = () => this.startSeason(); $("btn-end").onclick = () => this.toLobby();
+    Sfx.win();
+  },
+
+  /* ---------- views + hud ---------- */
   layout(){
     const W = window.innerWidth, H = window.innerHeight;
     this.renderer.setSize(W, H, false);
@@ -656,11 +917,11 @@ const Core = {
       r.render(scene, cam);
     });
   },
-  /* loop */
+  /* ---------- loop ---------- */
   frame(t){
     requestAnimationFrame(tt => this.frame(tt));
     let dt = Math.min(.1, (t - this.last)/1000); this.last = t;
-    if (this.game && (this.phase === "play" || this.phase === "over")){
+    if (this.game && (this.phase === "play" || this.phase === "over" || this.phase === "matchend")){
       this.acc += dt; const STEP = 1/240; let n = 0;
       while (this.acc >= STEP && n < 60){ this.game.step(STEP); this.gt += STEP; this.acc -= STEP; n++; }
       if (n >= 60) this.acc = 0;
@@ -671,23 +932,31 @@ const Core = {
     this.sendT -= dt;
     if (this.sendT <= 0 && this.net){ this.sendT = 1/15; this.sendState(); }
   },
-  fast(sec){ const STEP = 1/240; for (let i=0; i<sec/STEP; i++){ if (!this.game) break; this.game.step(STEP); this.gt += STEP; } },
+  fast(sec){ const STEP = 1/240; for (let i=0; i<sec/STEP; i++){ if (!this.game || this.phase !== "play") break; this.game.step(STEP); this.gt += STEP; } },
   sendState(){
-    const g = {ph:this.phase, gm:this.sel && this.sel.id, gn:this.sel && this.sel.name, pad:this.sel && this.sel.pad};
+    const S = this.season, def = S ? S.def : this.sel;
+    const g = {ph:this.phase, gm:def && def.id, gn:def && def.name, pad:def && def.pad, sea:S ? 1 : 0};
+    if (this.phase === "pick" && S && S.voting) g.vote = S.choices.map(c => c.icon + " " + c.name);
     const per = {};
     for (const s of this.seats){
       if (!s.cid) continue;
-      let st = {msg:"", sub:""};
-      const plays = this.gameDef ? s.i < this.gameDef.max : s.i < (this.sel ? this.sel.max : 2);
-      if (this.phase === "lobby") st = {msg:"You're in!", sub:plays ? "Tap Start when everyone's ready" : "Watching this one", act:"start"};
-      else if (this.game && plays) st = this.game.padState(s.i);
-      else st = {msg:"Watching", sub:"This game has no free seat"};
-      if (this.phase === "over") st.act = "rematch";
+      const slot = this.playing.indexOf(s.i);
+      let st;
+      const ph = this.phase;
+      if (ph === "lobby") st = {msg:"You're in!", sub:this.mode === "season" ? "Season mode · tap Start when everyone's ready" : "Tap Start when everyone's ready", act:"start"};
+      else if (ph === "pick") st = S && S.voting ? {msg:"Vote!", sub:"Pick the next game", act:"vote", vt:s.vt} : {msg:"Rolling…", sub:"Picking the next game"};
+      else if (ph === "intro") st = {msg:"Get ready", sub:S && S.def ? S.def.name : ""};
+      else if ((ph === "play" || ph === "matchend" || ph === "over") && this.game && slot >= 0) st = this.game.padState(slot);
+      else if (ph === "play" || ph === "matchend") st = {msg:"Watching", sub:"You're up next round"};
+      else if (ph === "roundres" && S) st = {msg:S.pts[s.i] + " points", sub:`Round ${S.round} done` + (S.gained[s.i] ? ` · +${S.gained[s.i]}` : ""), act:"next"};
+      else if (ph === "seasonend" && S){ const top = Math.max(...Object.values(S.pts)); st = {msg:S.pts[s.i] === top ? "You win the season!" : "Season over", sub:S.pts[s.i] + " points", act:"again"}; }
+      else st = {msg:"", sub:""};
+      if (ph === "over") st.act = "rematch";
       per[s.cid] = Object.assign({col:s.col, hit:s.hit, pt:s.pt}, st);
     }
     this.net.send(g, per);
   },
-  /* shared 3D bits */
+  /* ---------- shared 3D bits ---------- */
   makeBuddy(color){
     // round bean buddy with big eyes (the pack's own mascot style)
     const g = new THREE.Group();
@@ -711,7 +980,7 @@ const Core = {
     scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x3a3050, .9));
     const sun = new THREE.DirectionalLight(0xffffff, 1.6);
     sun.position.set(opt.sunX || 1.2, 7, opt.sunZ || .8); sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048); const sc = sun.shadow.camera; sc.left = -4; sc.right = 4; sc.top = 4; sc.bottom = -4; sc.near = 1; sc.far = 15;
+    sun.shadow.mapSize.set(2048, 2048); const sc = sun.shadow.camera; sc.left = -(opt.shadow || 4); sc.right = opt.shadow || 4; sc.top = opt.shadow || 4; sc.bottom = -(opt.shadow || 4); sc.near = 1; sc.far = 15;
     sun.shadow.bias = -.0005; scene.add(sun); scene.add(sun.target);
     return sun;
   }
