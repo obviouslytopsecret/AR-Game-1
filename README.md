@@ -1,17 +1,17 @@
-# Bumper Blobs
+# AR-Game-1
 
-Party game: a laptop or TV hosts, phones join as controllers over the internet (PeerJS public broker).
+Phone-controlled party games for a TV or laptop. The big screen hosts and shows a room code and QR code; phones scan to join (PeerJS public broker).
 
-Play: https://obviouslytopsecret.github.io/AR-Game-1/
+- **Pocket Sports** (3D, phones as motion controllers): https://obviouslytopsecret.github.io/AR-Game-1/
+- **Bumper Blobs** (2D party brawler): https://obviouslytopsecret.github.io/AR-Game-1/blobs/
 
-3D sports pack (phones as motion controllers): https://obviouslytopsecret.github.io/AR-Game-1/sports/ (source of truth on the `sports-3d` branch; `sports/` on main is a copy so Pages can serve it).
+`/sports/` redirects to the root so older links keep working. Development of the 3D pack happens on the `sports-3d` branch; main mirrors it.
 
-The earlier AR Pong build lives on the `ar-pong-v1` branch.
+## Pocket Sports
+- Free Play: pick one game and set its rules. Season: short minigames for points, picked by phone vote or random roll; 1v1 games rotate a sit-out with 3 players and become a bracket with 4.
+- **Ping Pong**: 1v1 vertical split screen. Swing the phone like a paddle; the paddle moves to the ball for you. Early swing = left, late = right, twisting the face aims, swing up = topspin, chop = slice, harder = deeper. Swipe fallback for phones without motion. Empty seats are CPU.
 
-## Modes
+Code: `index.html` is the shell (lobby, season, networking, phone controller, shared 3D helpers); `games/<id>.js` is one file per game via `registerGame()`; `lib/` vendors three.js r160, PeerJS 1.5.5 and qrcode-generator 1.4.4. Testing hook: `?broker=host:port` for a local PeerJS server.
 
-- **Sumo**: shove everyone off the shrinking rink with the stick and DASH. First to 3 round wins.
-- **Fantasy Brawl**: same rink, but everyone picks one upgrade card before the match and every non-winner picks again after each round. Cards give an attack button (snowball, slash, frost bop, quake), attack upgrades, dash trails and dash upgrades, or a passive. Cards live in the `CARDS` table in `index.html`; add a row to add a card.
-- **Soccer**: Orange vs Green on a walled pitch. Push the ball into the other team's goal, DASH for a hard kick. Mystery `?` cubes give one held item (snowball, goo, ice patch, turbo, ramp, magnet, big boot, shockwave), used with the second phone button. Items live in the `ITEMS` table. First team to 3 goals wins. Teams auto-balance on join; switch with the phone's team button or by tapping a player in the host lobby.
-
-Pick the mode with the Mode button in the host lobby.
+## Bumper Blobs
+Modes: Sumo, Fantasy Brawl, Soccer. Pick the mode with the Mode button in the host lobby. The earlier AR Pong build lives on the `ar-pong-v1` branch.
