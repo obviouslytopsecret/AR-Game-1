@@ -144,6 +144,8 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
   font-variant-numeric:tabular-nums}
 .chip i{width:20px;height:20px;border-radius:50%;display:block}
 .chip.out{opacity:.4}
+.chip.team{font-size:18px;padding:6px 14px 6px 6px}.chip.team i{width:26px;height:26px}
+.pcard.t0{box-shadow:inset 0 0 0 3px #ff8a3d}.pcard.t1{box-shadow:inset 0 0 0 3px #3ddc84}.pcard.t0,.pcard.t1{cursor:pointer}
 .chip em{font-style:normal;font-weight:400;color:var(--muted);font-size:.85em}
 #scores.many{gap:4px}#scores.many .chip{font-size:11px;padding:3px 8px 3px 3px;gap:5px}#scores.many .chip i{width:12px;height:12px}
 #codechip{position:absolute;top:max(12px,env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));background:var(--panel);
@@ -401,7 +403,7 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
     </div>
     <div id="cartmenu" data-title="BUMPER BLOBS"><button id="padedit">Name &amp; color</button><button id="padsettings">Settings</button><button id="padmode">Switch mode</button></div>
   </div>
-  <div id="padstatus"><span id="padstatustext">Connecting…</span><button id="padstart" hidden>Start</button></div>
+  <div id="padstatus"><span id="padstatustext">Connecting…</span><button id="padteam" hidden>Switch team</button><button id="padstart" hidden>Start</button></div>
   <div id="padarea">
     <div id="movezone" class="movezone"></div>
     <div id="btnzone" class="btnzone"></div>
@@ -2772,7 +2774,7 @@ function normIn(m){
   const b = Array.isArray(m.b) ? [m.b[0]|0, m.b[1]|0] : [m.d|0, 0];
   const sw = Array.isArray(m.sw) ? [m.sw[0]|0, +m.sw[1]||0, +m.sw[2]||0] : [0,0,0];
   const pk = Array.isArray(m.pk) ? [m.pk[0]|0, m.pk[1]|0] : [0,0];
-  return {x:+m.x||0, y:+m.y||0, b, sw, go:m.go|0, pk};
+  return {x:+m.x||0, y:+m.y||0, b, sw, go:m.go|0, pk, tm:m.tm|0};
 }
 /* Host side: emits hello / input / leave, sends per-player state */
 class HostNet {
@@ -2917,7 +2919,7 @@ class PadNet {
   send(inp){ this.inp = inp; this.flush(false); }
   flush(force){
     const i = this.inp; if (!i) return;
-    const m = {x:+i.x.toFixed(3), y:+i.y.toFixed(3), d:i.b[0], b:i.b.slice(0,2), sw:i.sw.slice(0,3), go:i.go, pk:(i.pk || [0,0]).slice(0,2)};
+    const m = {x:+i.x.toFixed(3), y:+i.y.toFixed(3), d:i.b[0], b:i.b.slice(0,2), sw:i.sw.slice(0,3), go:i.go, pk:(i.pk || [0,0]).slice(0,2), tm:i.tm|0};
     const key = JSON.stringify(m);
     if (!force && key === this.lastKey) return; this.lastKey = key;
     if (transportKind === "room"){ roomApi.presence(m).catch(()=>{}); return; }
@@ -3042,7 +3044,7 @@ function kitStats(kit){
   return s;
 }
 const game = {
-  mode: store.get("bb-gmode") === "brawl" ? "brawl" : "sumo", shots:[], zones:[], fx:[], pickers:[],
+  mode: ["brawl","soccer"].includes(store.get("bb-gmode")) ? store.get("bb-gmode") : "sumo", ball:null, goals:[0,0], champTeam:-1, cubes:[], ramps:[], shots:[], zones:[], fx:[], pickers:[],
   phase:"lobby", players:new Map(), order:[], t:0, phaseT:0, R:W.R0, banner:"", sub:"", feed:[], parts:[], shake:0,
   roundNo:0, champion:null, lastGo:new Map()
 };
@@ -3058,8 +3060,9 @@ function sizeArena(n){
   const k = Math.max(1, Math.sqrt(n/6));
   W.R0 = Math.round(W.BASE_R0*k); W.RMIN = Math.round(W.BASE_RMIN*k);
 }
+function smallerTeam(){ const c = [0,0]; for (const q of game.players.values()) c[q.team|0]++; return c[1] < c[0] ? 1 : 0; }
 function addPlayer(cid, name, col, bot){
-  const p = {cid, name:name || "Blob", col:freeColor(col), score:0, bot:!!bot, connected:true, inp:{x:0,y:0}, bSeen:[0,0], swSeen:0, goSeen:0, blob:null, hits:0, wander:Math.random()*6, kit:newKit(), pkSeen:null, offer:null, picked:null};
+  const p = {team:smallerTeam(), tmSeen:null, cid, name:name || "Blob", col:freeColor(col), score:0, bot:!!bot, connected:true, inp:{x:0,y:0}, bSeen:[0,0], swSeen:0, goSeen:0, blob:null, hits:0, wander:Math.random()*6, kit:newKit(), pkSeen:null, offer:null, picked:null};
   game.players.set(cid, p); game.order.push(cid);
   return p;
 }
@@ -3071,7 +3074,7 @@ const hostHandlers = {
     if (p){ // reconnect, or a rename / recolor from the phone
       p.connected = true; p.name = name;
       if (Number.isInteger(info.color) && info.color !== p.col){ const c = freeColor(info.color); if (c === info.color) p.col = c; }
-      p.bSeen = null; p.swSeen = null; p.goSeen = null; p.pkSeen = null; renderLobby(); return true; }
+      p.bSeen = null; p.swSeen = null; p.goSeen = null; p.pkSeen = null; p.tmSeen = null; renderLobby(); return true; }
     p = addPlayer(cid, name, Number.isInteger(info.color) ? info.color : -1, false);
     feed(p.name + " joined");
     renderLobby(); return true;
@@ -3089,6 +3092,8 @@ const hostHandlers = {
     const pk = inp.pk || [0,0];
     if (p.pkSeen === null) p.pkSeen = pk[0];
     else if (pk[0] !== p.pkSeen){ p.pkSeen = pk[0]; pickCard(p, pk[1]); }
+    if (p.tmSeen === null) p.tmSeen = inp.tm|0;
+    else if ((inp.tm|0) !== p.tmSeen){ p.tmSeen = inp.tm|0; switchTeam(p); }
     if (p.goSeen === null) p.goSeen = inp.go;
     else if (inp.go !== p.goSeen){ p.goSeen = inp.go; if (game.phase === "lobby") tryStart(); }
   },
@@ -3107,32 +3112,37 @@ function renderLobby(){
   const list = game.order.map(c => game.players.get(c)).filter(Boolean);
   const box = $("players"); box.replaceChildren();
   for (const p of list){
-    const d = document.createElement("div"); d.className = "pcard";
+    const d = document.createElement("div"); d.className = "pcard" + (game.mode === "soccer" ? " t" + p.team : "");
+    if (game.mode === "soccer"){ d.title = "Tap to switch team"; d.onclick = () => switchTeam(p); }
     const i = document.createElement("i"); i.style.background = colorOf(p.col).c;
     const b = document.createElement("b"); b.textContent = p.name;
-    const s = document.createElement("small"); s.textContent = p.bot ? "CPU" : p.local ? "This screen" : (p.connected ? "Phone connected" : "Reconnecting…");
+    const s = document.createElement("small"); s.textContent = (game.mode === "soccer" ? TEAMS[p.team].n + " · " : "") + (p.bot ? "CPU" : p.local ? "This screen" : (p.connected ? "Phone connected" : "Reconnecting…"));
     b.appendChild(s); d.append(i, b); box.appendChild(d);
   }
   box.classList.toggle("many", list.length > 8);
   for (let k=list.length; k<Math.max(4, list.length+1); k++){
     const d = document.createElement("div"); d.className = "pcard empty"; d.textContent = "Open slot"; box.appendChild(d);
   }
-  $("lobbycount").textContent = list.length + " player" + (list.length === 1 ? "" : "s") + (list.length < 2 ? " · need at least 2" : " · ready");
+  const tc = [0,0]; for (const q of list) tc[q.team]++;
+  $("lobbycount").textContent = list.length + " player" + (list.length === 1 ? "" : "s") + (game.mode === "soccer" ? " · " + TEAMS[0].n + " " + tc[0] + " v " + TEAMS[1].n + " " + tc[1] : "") + (list.length < 2 ? " · need at least 2" : " · ready");
   $("btn-start").disabled = $("mini-start").disabled = list.length < 2;
   $("mini-count").textContent = list.length + " player" + (list.length === 1 ? "" : "s") + (list.length < 2 ? " · add a CPU" : "");
   $("mini-addbot").disabled = false;
   $("btn-rmbot").disabled = !list.some(p => p.bot);
   $("btn-addbot").disabled = false;
-  const br = game.mode === "brawl";
-  $("btn-gmode").textContent = "Mode: " + (br ? "Fantasy Brawl" : "Sumo"); $("mini-gmode").textContent = br ? "Brawl" : "Sumo";
+  const br = game.mode === "brawl", so = game.mode === "soccer";
+  $("btn-gmode").textContent = "Mode: " + (br ? "Fantasy Brawl" : so ? "Soccer" : "Sumo"); $("mini-gmode").textContent = br ? "Brawl" : so ? "Soccer" : "Sumo";
   $("modehint").textContent = br ? "Fantasy Brawl: after each round, everyone except the winner picks an upgrade card on their phone, like a snowball throw, a slash, a dash trail or a shield. Cards stack all match." : "Sumo: classic shove-off. Just the stick and DASH.";
-  GAME.sub = br ? "Fantasy Brawl" : "Shrinking-rink brawl";
+  if (so) $("modehint").textContent = "Soccer: " + TEAMS[0].n + " vs " + TEAMS[1].n + ". Push the ball into the other team's goal, DASH to kick it hard. First team to 3 goals wins. Tap a player here, or Switch team on a phone, to change sides.";
+  GAME.sub = br ? "Fantasy Brawl" : so ? "Blob Soccer" : "Shrinking-rink brawl";
+  if (so && game.phase === "lobby") sizePitch(list.length);
   if (game.phase === "lobby"){ sizeArena(list.length); game.R = W.R0; }
   renderScores();
 }
 function renderScores(){
   const el = $("scores"); el.replaceChildren();
   el.classList.toggle("many", game.order.length > 8);
+  if (game.mode === "soccer"){ for (const t of [0,1]){ const d = document.createElement("div"); d.className = "chip team"; const i = document.createElement("i"); i.style.background = TEAMS[t].c; d.append(i, document.createTextNode(TEAMS[t].n + "  " + game.goals[t])); el.appendChild(d); } }
   for (const c of game.order){ const p = game.players.get(c); if (!p) continue;
     const d = document.createElement("div"); d.className = "chip" + (p.blob && !p.blob.alive ? " out" : "");
     const i = document.createElement("i"); i.style.background = lcd ? blobFill(p) : colorOf(p.col).c;
@@ -3146,10 +3156,11 @@ function tryStart(){
   for (const p of game.players.values()){ p.score = 0; p.kit = newKit(); p.offer = null; p.picked = null; }
   game.champion = null; game.roundNo = 0;
   $("lobby").hidden = true; $("hud").hidden = false;
+  if (game.mode === "soccer"){ soccerStart(); return; }
   if (game.mode === "brawl") beginCards([...game.players.values()], true); else startRound();
 }
 function toLobby(){
-  game.phase = "lobby"; game.R = W.R0; game.shots = []; game.zones = []; game.fx = []; game.pickers = [];
+  game.phase = "lobby"; game.R = W.R0; game.shots = []; game.zones = []; game.fx = []; game.pickers = []; game.ball = null; game.goals = [0,0]; game.champTeam = -1; game.cubes = []; game.ramps = [];
   $("cardpanel").hidden = true;
   for (const [cid, p] of [...game.players]){ p.blob = null; p.kit = newKit(); p.offer = null; p.picked = null; if (!p.connected && !p.bot) removePlayer(cid); }
   $("lobby").hidden = false; $("hud").hidden = true; $("banner").textContent = "";
@@ -3178,6 +3189,7 @@ function spawnBlob(a, r, p){
 const dashFrac = b => b.ch > 0 ? 0 : clamp(b.cd/b.st.dashCd, 0, 1);
 const atkFrac = b => b.st.atk ? clamp(b.acd/b.st.atkCd, 0, 1) : 0;
 function ctlFor(p){
+  if (game.mode === "soccer") return p.item ? {move:"stick", buttons:["DASH", ITEMS[p.item].label]} : GAME.controls;
   const st = p.blob ? p.blob.st : (game.mode === "brawl" ? kitStats(p.kit) : null);
   return st && st.atk ? {move:"stick", buttons:["DASH", ATTACKS[st.atk].label]} : GAME.controls;
 }
@@ -3218,6 +3230,253 @@ function renderCardPanel(force){
 }
 function setPhase(ph){ game.phase = ph; game.phaseT = 0; }
 
+
+/* ---------- Soccer: two teams, one ball, walls instead of ring-outs ---------- */
+const TEAMS = [{n:"Orange", c:"#ff8a3d"}, {n:"Green", c:"#3ddc84"}];
+const PITCH = {FW:480, FH:280, GH:80, GD:56, CR:90, BALL_R:17, BALL_M:.55};
+// rounded corners so the ball can't get pinned in one
+function cornerFix(o, r, bounce){
+  const {FW, FH, CR} = PITCH, ax = Math.abs(o.x), ay = Math.abs(o.y);
+  if (ax < FW - CR || ay < FH - CR) return;
+  const cx = Math.sign(o.x)*(FW - CR), cy = Math.sign(o.y)*(FH - CR), dx = o.x - cx, dy = o.y - cy, d = Math.hypot(dx, dy);
+  if (d <= CR - r || d === 0) return;
+  const nx = dx/d, ny = dy/d; o.x = cx + nx*(CR - r); o.y = cy + ny*(CR - r);
+  const vn = o.vx*nx + o.vy*ny; if (vn > 0){ o.vx -= (1 + bounce)*vn*nx; o.vy -= (1 + bounce)*vn*ny; }
+}
+function sizePitch(n){ const k = Math.max(1, Math.sqrt(n/6)); PITCH.FW = Math.round(480*k); PITCH.FH = Math.round(280*k); PITCH.GH = Math.round(80*Math.min(k, 1.6)); }
+function switchTeam(p){
+  if (!p || game.mode !== "soccer" || game.phase !== "lobby") return;
+  p.team = p.team ? 0 : 1; p.blob = null; feed(p.name + " joined " + TEAMS[p.team].n); renderLobby();
+}
+function newBall(){ return {x:0, y:0, vx:0, vy:0, r:PITCH.BALL_R, spin:0, last:null}; }
+function kickoffSpots(){
+  const list = game.order.map(c => game.players.get(c)).filter(p => p && (p.connected || p.bot));
+  for (const t of [0,1]){
+    const team = list.filter(p => p.team === t), side = t === 0 ? -1 : 1, m = team.length;
+    team.forEach((p, i) => {
+      const col = Math.floor(i/4), rows = Math.min(4, m - col*4), row = i % 4;
+      const x = side*Math.min(PITCH.FW - 40, PITCH.FW*.28 + col*85), y = (row - (rows-1)/2)*Math.min(120, 2*PITCH.FH/(rows+1));
+      p.blob = spawnBlob(0, 0, p); p.blob.x = x; p.blob.y = y; p.blob.face = side > 0 ? Math.PI : 0; p.wantDash = false; p.wantAtk = false;
+    });
+  }
+  for (const p of game.players.values()) if (!list.includes(p)) p.blob = null;
+  game.ball = newBall(); game.parts = []; game.shots = []; game.zones = []; game.ramps = []; game.fx = [];
+  if (!game.cubes || !game.cubes.length) placeCubes();
+}
+function soccerStart(){
+  const list = [...game.players.values()];
+  for (const t of [0,1]) if (!list.some(p => p.team === t)){ const other = list.filter(p => p.team !== t); other[other.length-1].team = t; }
+  game.goals = [0,0]; game.champTeam = -1; game.roundNo = 0;
+  for (const p of list) p.item = null;
+  sizePitch(list.length); game.cubes = []; soccerKickoff();
+}
+function soccerKickoff(){ game.roundNo++; kickoffSpots(); setPhase("countdown"); }
+function stepSoccer(dt){
+  const ph = game.phase;
+  if (ph === "lobby"){
+    game.banner = ""; game.sub = "";
+    for (const p of game.players.values()) if (!p.blob || !p.blob.alive){ p.blob = spawnBlob(0, 0, p); p.blob.x = (p.team ? 1 : -1)*PITCH.FW*(.25 + Math.random()*.4); p.blob.y = (Math.random()-.5)*PITCH.FH; }
+    if (!game.ball) game.ball = newBall();
+    if (!game.cubes || !game.cubes.length) placeCubes();
+    simulate(dt); return;
+  }
+  if (ph === "countdown"){
+    const n = 3 - Math.floor(game.phaseT), prev = 3 - Math.floor(game.phaseT - dt);
+    if (n !== prev && n > 0) Sfx.beep(false);
+    game.banner = n > 0 ? String(n) : "GO!"; game.sub = TEAMS[0].n + " " + game.goals[0] + " – " + game.goals[1] + " " + TEAMS[1].n + " · first to " + WIN_SCORE;
+    if (game.phaseT >= 3){ Sfx.beep(true); setPhase("play"); }
+    return;
+  }
+  if (ph === "play"){ if (game.phaseT > .6){ game.banner = ""; game.sub = ""; } simulate(dt); return; }
+  if (ph === "goal"){ simulate(dt);
+    if (game.phaseT > 2.6){
+      const w = game.goals[0] >= WIN_SCORE ? 0 : game.goals[1] >= WIN_SCORE ? 1 : -1;
+      if (w >= 0){ game.champTeam = w; setPhase("matchover"); game.banner = "Team " + TEAMS[w].n + " wins!"; game.sub = "Final score " + game.goals[0] + " – " + game.goals[1]; Sfx.win(); }
+      else soccerKickoff(); }
+    return; }
+  if (ph === "matchover"){ simulate(dt); if (game.phaseT > 7) toLobby(); return; }
+}
+function scoreGoal(team){
+  const b = game.ball, sc = b.last, practice = game.phase === "lobby";
+  const own = sc && sc.team !== team;
+  if (practice){ feed((sc ? sc.name : "Someone") + " scored a practice goal"); game.ball = newBall(); return; }
+  game.goals[team]++; if (sc && !own) sc.score++;
+  feed(sc ? (own ? sc.name + " scored an own goal!" : sc.name + " scored for " + TEAMS[team].n + "!") : TEAMS[team].n + " scored!");
+  game.banner = "GOAL!"; game.sub = TEAMS[0].n + " " + game.goals[0] + " – " + game.goals[1] + " " + TEAMS[1].n;
+  game.shake = 14; Sfx.win();
+  for (let k=0;k<60;k++){ const ang = Math.random()*Math.PI*2, s = 100 + Math.random()*420;
+    game.parts.push({x:b.x, y:b.y, vx:Math.cos(ang)*s, vy:Math.sin(ang)*s, life:1.2, max:1.2, col:k % 3 ? TEAMS[team].c : "#ffffff"}); }
+  setPhase("goal"); renderScores();
+}
+function soccerPhys(dt, ps){
+  const {FW, FH, GH, GD} = PITCH;
+  // blobs stay on the pitch
+  for (const p of ps){ const b = p.blob, r = b.r;
+    if (b.x < -FW + r){ b.x = -FW + r; b.vx = Math.abs(b.vx)*.5; } if (b.x > FW - r){ b.x = FW - r; b.vx = -Math.abs(b.vx)*.5; }
+    if (b.y < -FH + r){ b.y = -FH + r; b.vy = Math.abs(b.vy)*.5; } if (b.y > FH - r){ b.y = FH - r; b.vy = -Math.abs(b.vy)*.5; }
+    cornerFix(b, r, .5); }
+  stepItems(dt, ps);
+  const ball = game.ball; if (!ball) return;
+  const live = game.phase === "play" || game.phase === "lobby";
+  // blob touches ball (a flying ball sails over everyone)
+  for (const p of ps){ const b = p.blob; if (b.falling || ball.air > 0) continue;
+    let dx = ball.x - b.x, dy = ball.y - b.y, d = Math.hypot(dx, dy);
+    if (d >= b.r + ball.r || d === 0) continue;
+    const nx = dx/d, ny = dy/d, mb = b.st.mass*(b.dashT > 0 ? 2.4 : 1), ib = 1/mb, il = 1/PITCH.BALL_M, sum = ib + il, over = b.r + ball.r - d;
+    b.x -= nx*over*ib/sum; b.y -= ny*over*ib/sum; ball.x += nx*over*il/sum; ball.y += ny*over*il/sum;
+    const vn = (b.vx - ball.vx)*nx + (b.vy - ball.vy)*ny;
+    if (vn > 0){ const J = 1.6*vn/sum; b.vx -= J*ib*nx; b.vy -= J*ib*ny; ball.vx += J*il*nx; ball.vy += J*il*ny; }
+    if (b.boot > 0){ b.boot = 0; ball.vx += nx*950; ball.vy += ny*950; game.fx.push({kind:"pop", x:ball.x, y:ball.y, r:ball.r + 16, t:.3, max:.3}); }
+    if (b.dashT > 0 && !b.kicked){ b.kicked = true; ball.vx += nx*420; ball.vy += ny*420; Sfx.bump(600); game.shake = Math.max(game.shake, 5);
+      for (let k=0;k<10;k++){ const ang = Math.random()*Math.PI*2, s = 60+Math.random()*240; game.parts.push({x:ball.x, y:ball.y, vx:Math.cos(ang)*s, vy:Math.sin(ang)*s, life:.35, max:.35, col:"#ffffff"}); } }
+    else if (vn > 120) Sfx.bump(vn*.5);
+    ball.last = p;
+  }
+  for (const p of ps) if (p.blob.dashT <= 0) p.blob.kicked = false;
+  // roll
+  const sp = Math.hypot(ball.vx, ball.vy), cap = ball.air > 0 ? 1500 : 1150; if (sp > cap){ ball.vx *= cap/sp; ball.vy *= cap/sp; }
+  const f = Math.exp(-(ball.air > 0 ? .2 : .9)*dt); ball.vx *= f; ball.vy *= f;
+  ball.x += ball.vx*dt; ball.y += ball.vy*dt; ball.spin += sp*dt/ball.r;
+  const r = ball.r, inMouth = Math.abs(ball.y) < GH - r*.3;
+  if (ball.y < -FH + r){ ball.y = -FH + r; ball.vy = Math.abs(ball.vy)*.8; }
+  if (ball.y > FH - r){ ball.y = FH - r; ball.vy = -Math.abs(ball.vy)*.8; }
+  cornerFix(ball, r, .8);
+  for (const s of [-1, 1]){
+    const past = s*ball.x > FW - r;
+    if (!past) continue;
+    if (!inMouth && s*ball.x < FW + 2){ ball.x = s*(FW - r); ball.vx = -s*Math.abs(ball.vx)*.8; continue; }
+    // inside the goal: net walls
+    if (s*ball.x > FW + GD - r){ ball.x = s*(FW + GD - r); ball.vx = -s*Math.abs(ball.vx)*.3; }
+    if (Math.abs(ball.y) > GH - r){ ball.y = Math.sign(ball.y)*(GH - r); ball.vy *= -.4; }
+    if (live && s*ball.x > FW + r){ scoreGoal(s > 0 ? 0 : 1); return; }
+  }
+}
+function botSoccer(p, dt){
+  const b = p.blob, ball = game.ball; if (!ball) return;
+  const gx = p.team === 0 ? PITCH.FW + 30 : -PITCH.FW - 30;
+  let ax = gx - ball.x, ay = -ball.y; const al = Math.hypot(ax, ay) || 1; ax /= al; ay /= al;
+  const sx = clamp(ball.x - ax*(ball.r + b.r + 14), -PITCH.FW + b.r, PITCH.FW - b.r), sy = clamp(ball.y - ay*(ball.r + b.r + 14), -PITCH.FH + b.r, PITCH.FH - b.r);
+  const tbx = ball.x - b.x, tby = ball.y - b.y, tb = Math.hypot(tbx, tby) || 1;
+  const behind = (tbx*ax + tby*ay)/tb > .55;
+  let tx, ty;
+  if (behind){ tx = tbx/tb; ty = tby/tb; if (tb < 75 && b.ch > 0 && Math.random() < dt*3) p.wantDash = true; }
+  else { tx = sx - b.x; ty = sy - b.y; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+    // swing around the ball instead of pushing it backwards
+    if (tb < 90){ const px = -ay, py = ax, sd = (tbx*py - tby*px) > 0 ? -1 : 1; tx += px*sd*.9; ty += py*sd*.9; } }
+  // spread out a bit from teammates
+  for (const q of game.players.values()){ if (q === p || q.team !== p.team || !q.blob) continue;
+    const dx = b.x - q.blob.x, dy = b.y - q.blob.y, d = Math.hypot(dx, dy); if (d < 110 && d > 0){ tx += dx/d*.5; ty += dy/d*.5; } }
+  p.wander += (Math.random()-.5)*dt*4; tx += Math.cos(p.wander)*.15; ty += Math.sin(p.wander)*.15;
+  const l = Math.hypot(tx, ty) || 1; p.inp = {x:tx/l*.85, y:ty/l*.85};
+  if (p.item){ p.itemT -= dt; if (p.itemT <= 0){ if (p.item === "snow"){ p.inp = {x:tbx/tb, y:tby/tb}; } p.wantAtk = true; } }
+}
+
+/* Soccer mystery cubes: drive over one to hold a random item, tap the item button to use it.
+   Data-driven like the cards: add a row to ITEMS and a case in useItem. */
+const ITEMS = {
+  snow:   {n:"Snowball",  label:"SNOW",   icon:"❄️", d:"Throw a snowball that knocks players and the ball"},
+  goo:    {n:"Goo",       label:"GOO",    icon:"🟢", d:"Drop a goo puddle that slows the other team"},
+  ice:    {n:"Ice Patch", label:"ICE",    icon:"🧊", d:"Drop an ice patch that makes the other team slide"},
+  turbo:  {n:"Turbo",     label:"TURBO",  icon:"⚡", d:"A few seconds of extra speed"},
+  ramp:   {n:"Ramp",      label:"RAMP",   icon:"📐", d:"Place a ramp; the ball flies over everyone"},
+  magnet: {n:"Magnet",    label:"MAGNET", icon:"🧲", d:"Pull the ball toward you for a few seconds"},
+  boot:   {n:"Big Boot",  label:"BOOT",   icon:"👟", d:"Your next touch of the ball is a huge kick"},
+  boom:   {n:"Shockwave", label:"BOOM",   icon:"💥", d:"Blast nearby opponents and the ball away"}
+};
+const ITEM_IDS = Object.keys(ITEMS);
+function placeCubes(){
+  const n = clamp(2 + Math.floor(game.players.size/3), 2, 6); game.cubes = [];
+  for (let i=0;i<n;i++) game.cubes.push(cubeSpot({t:0}));
+}
+function cubeSpot(c){
+  for (let k=0;k<20;k++){ const x = (Math.random()*2-1)*PITCH.FW*.8, y = (Math.random()*2-1)*PITCH.FH*.8;
+    if (Math.hypot(x, y) > 110 && !(game.cubes || []).some(o => o !== c && Math.hypot(o.x - x, o.y - y) < 120)){ c.x = x; c.y = y; break; } }
+  if (c.x === undefined){ c.x = PITCH.FW*.5; c.y = 0; }
+  c.t = 0; return c;
+}
+function useItem(p, ix, iy){
+  const b = p.blob, it = p.item; p.item = null; if (!it) return;
+  let dx = ix, dy = iy, l = Math.hypot(dx, dy); if (l < .3){ dx = Math.cos(b.face); dy = Math.sin(b.face); l = 1; } dx /= l; dy /= l;
+  b.face = Math.atan2(dy, dx); Sfx.dash();
+  const foes = [...game.players.values()].filter(q => q.team !== p.team && q.blob && q.blob.alive);
+  if (it === "snow") game.shots.push({x:b.x + dx*(b.r + 10), y:b.y + dy*(b.r + 10), vx:dx*820, vy:dy*820, r:14, pow:1.1, own:p, life:.9});
+  else if (it === "goo") game.zones.push({x:b.x - dx*30, y:b.y - dy*30, r:78, t:7, max:7, kind:"slick", own:p});
+  else if (it === "ice") game.zones.push({x:b.x - dx*30, y:b.y - dy*30, r:90, t:7, max:7, kind:"ice", own:p});
+  else if (it === "turbo") b.turbo = 3;
+  else if (it === "ramp") game.ramps.push({x:b.x + dx*(b.r + 46), y:b.y + dy*(b.r + 46), a:Math.atan2(dy, dx), t:12});
+  else if (it === "magnet") b.magnet = 3;
+  else if (it === "boot") b.boot = 8;
+  else if (it === "boom"){
+    for (const q of foes){ const ox = q.blob.x - b.x, oy = q.blob.y - b.y, d = Math.hypot(ox, oy) || 1; if (d < 170) shove(p, q, ox/d, oy/d, 600*(1 - .4*d/170)); }
+    const ball = game.ball; if (ball){ const ox = ball.x - b.x, oy = ball.y - b.y, d = Math.hypot(ox, oy) || 1; if (d < 170){ ball.vx += ox/d*520; ball.vy += oy/d*520; ball.last = p; } }
+    game.fx.push({kind:"ring", x:b.x, y:b.y, r:170, t:.35, max:.35}); game.shake = Math.max(game.shake, 7);
+  }
+  feed(p.name + " used " + ITEMS[it].n);
+}
+function stepItems(dt, ps){
+  const live = game.phase === "play" || game.phase === "lobby";
+  for (const c of game.cubes){
+    if (c.t > 0){ c.t -= dt; if (c.t <= 0) cubeSpot(c); continue; }
+    if (!live) continue;
+    for (const p of ps){ const b = p.blob; if (p.item || b.falling) continue;
+      if (Math.hypot(b.x - c.x, b.y - c.y) < b.r + 20){ p.item = ITEM_IDS[Math.floor(Math.random()*ITEM_IDS.length)]; p.itemT = .6 + Math.random()*1.8;
+        c.t = 6; Sfx.beep(true); for (let k=0;k<14;k++){ const ang = Math.random()*Math.PI*2, s2 = 60 + Math.random()*200; game.parts.push({x:c.x, y:c.y, vx:Math.cos(ang)*s2, vy:Math.sin(ang)*s2, life:.5, max:.5, col:"#ffd23f"}); }
+        break; } }
+  }
+  for (const p of ps){ const b = p.blob;
+    b.turbo = Math.max(0, (b.turbo || 0) - dt); b.magnet = Math.max(0, (b.magnet || 0) - dt); b.boot = Math.max(0, (b.boot || 0) - dt); b.ice = Math.max(0, (b.ice || 0) - dt);
+    if (b.turbo > 0){ b.trail.push({x:b.x, y:b.y, a:1}); if (b.trail.length > 10) b.trail.shift(); } }
+  const ball = game.ball; if (!ball) return;
+  for (const p of ps){ const b = p.blob; if (b.magnet > 0 && !ball.air){ const ox = b.x - ball.x, oy = b.y - ball.y, d = Math.hypot(ox, oy) || 1; if (d < 280 && d > b.r + ball.r){ ball.vx += ox/d*1100*dt; ball.vy += oy/d*1100*dt; } } }
+  // snowballs bump the ball too
+  for (const sh of game.shots){ if (Math.hypot(ball.x - sh.x, ball.y - sh.y) < ball.r + sh.r && !ball.air){ ball.vx += sh.vx*.6; ball.vy += sh.vy*.6; ball.last = sh.own; sh.life = 0; } }
+  // ramps launch the ball
+  for (const r of game.ramps){ r.t -= dt;
+    if (!ball.air && Math.hypot(ball.x - r.x, ball.y - r.y) < 34 && Math.hypot(ball.vx, ball.vy) > 60){
+      const sp = Math.max(500, Math.hypot(ball.vx, ball.vy)*1.4), a = Math.atan2(ball.vy, ball.vx);
+      ball.vx = Math.cos(a)*sp; ball.vy = Math.sin(a)*sp; ball.air = .8; ball.airMax = .8; r.t = 0; Sfx.bump(700); } }
+  game.ramps = game.ramps.filter(r => r.t > 0);
+  if (ball.air) ball.air = Math.max(0, ball.air - dt);
+}
+function drawItems(g){
+  for (const r of game.ramps){ g.save(); g.translate(r.x, r.y); g.rotate(r.a);
+    g.fillStyle = lcd ? LCD[2] : "#c98a4b"; g.beginPath(); g.moveTo(-26, -24); g.lineTo(26, -10); g.lineTo(26, 10); g.lineTo(-26, 24); g.closePath(); g.fill();
+    g.strokeStyle = lcd ? LCD[3] : "#7a4f26"; g.lineWidth = 3; g.stroke(); g.restore(); }
+  for (const c of game.cubes){ if (c.t > 0) continue;
+    const bob = Math.sin(game.t*3 + c.x)*4; g.save(); g.translate(c.x, c.y + bob); g.rotate(Math.sin(game.t*1.5 + c.y)*.25);
+    g.fillStyle = lcd ? LCD[3] : "#ffd23f"; g.fillRect(-17, -17, 34, 34); g.strokeStyle = lcd ? LCD[2] : "#b8860b"; g.lineWidth = 3; g.strokeRect(-17, -17, 34, 34);
+    g.fillStyle = lcd ? LCD[0] : "#7a4a00"; g.font = "800 24px Rubik, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("?", 0, 1); g.textBaseline = "alphabetic"; g.restore(); }
+}
+function drawPitch(g){
+  const {FW, FH, GH, GD} = PITCH;
+  // goals (behind the line), tinted by the team that defends them
+  for (const [s, t] of [[-1, 0], [1, 1]]){
+    g.fillStyle = lcd ? LCD[1] : TEAMS[t].c; g.globalAlpha = lcd ? 1 : .35;
+    g.fillRect(s < 0 ? -FW - GD : FW, -GH, GD, GH*2); g.globalAlpha = 1;
+    g.strokeStyle = lcd ? LCD[3] : "#ffffff"; g.lineWidth = lcd ? 6 : 5; g.strokeRect(s < 0 ? -FW - GD : FW, -GH, GD, GH*2);
+    if (!lcd){ g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = 1.5; for (let k = 10; k < GD; k += 12){ g.beginPath(); g.moveTo(s*(FW + k), -GH); g.lineTo(s*(FW + k), GH); g.stroke(); } }
+  }
+  const field = (oy) => { g.beginPath(); if (g.roundRect) g.roundRect(-FW, -FH + oy, FW*2, FH*2, PITCH.CR); else g.rect(-FW, -FH + oy, FW*2, FH*2); };
+  g.fillStyle = lcd ? LCD[2] : "rgba(0,0,0,.28)"; field(18); g.fill();
+  if (lcd) g.fillStyle = LCD[0]; else { const gr = g.createLinearGradient(0, -FH, 0, FH); gr.addColorStop(0, "#3fae5a"); gr.addColorStop(1, "#2f8f4a"); g.fillStyle = gr; }
+  field(0); g.fill();
+  if (!lcd){ g.save(); field(0); g.clip(); g.fillStyle = "rgba(255,255,255,.05)"; const sw = FW/4; for (let k = 0; k < 8; k += 2) g.fillRect(-FW + k*sw, -FH, sw, FH*2); g.restore(); }
+  g.strokeStyle = lcd ? LCD[2] : "rgba(255,255,255,.85)"; g.lineWidth = lcd ? 6 : 4;
+  field(0); g.stroke();
+  g.beginPath(); g.moveTo(0, -FH); g.lineTo(0, FH); g.stroke();
+  g.beginPath(); g.arc(0, 0, Math.min(90, FH*.35), 0, Math.PI*2); g.stroke();
+  for (const s of [-1, 1]){ g.strokeRect(s < 0 ? -FW : FW - 120, -GH - 60, 120, GH*2 + 120); }
+  if (!lcd){ g.font = "700 26px Rubik, system-ui, sans-serif"; g.textAlign = "center"; g.fillStyle = "rgba(255,255,255,.18)";
+    g.fillText(TEAMS[0].n.toUpperCase(), -FW/2, -FH + 40); g.fillText(TEAMS[1].n.toUpperCase(), FW/2, -FH + 40); }
+}
+function drawBall(g){
+  const b = game.ball; if (!b) return;
+  g.fillStyle = lcd ? LCD[2] : "rgba(0,0,0,.25)"; g.beginPath(); g.ellipse(b.x + 3, b.y + b.r*.8, b.r, b.r*.4, 0, 0, Math.PI*2); g.fill();
+  g.fillStyle = lcd ? LCD[0] : "#ffffff"; g.beginPath(); g.arc(b.x, b.y, b.r, 0, Math.PI*2); g.fill();
+  g.strokeStyle = lcd ? LCD[3] : "#1d2b30"; g.lineWidth = lcd ? 4 : 2; g.stroke();
+  g.fillStyle = lcd ? LCD[3] : "#1d2b30";
+  for (let k = 0; k < 3; k++){ const a = b.spin + k*2.094; g.beginPath(); g.arc(b.x + Math.cos(a)*b.r*.5, b.y + Math.sin(a)*b.r*.5, b.r*.26, 0, Math.PI*2); g.fill(); }
+}
 function botThink(p, dt){
   const b = p.blob, me = p; let tx = 0, ty = 0, best = 1e9, tgt = null;
   for (const q of game.players.values()){
@@ -3236,6 +3495,7 @@ function botThink(p, dt){
 
 function stepGame(dt){
   game.phaseT += dt; game.t += dt;
+  if (game.mode === "soccer"){ stepSoccer(dt); return; }
   const ph = game.phase;
   if (ph === "lobby"){
     game.R = W.R0; game.roundT = 0; game.banner = ""; game.sub = "";
@@ -3302,8 +3562,8 @@ function simulate(dt){
     b.acd = Math.max(0, b.acd - dt); b.stun = Math.max(0, b.stun - dt); b.slow = Math.max(0, b.slow - dt);
     if (b.falling){ b.falling += dt; b.vx *= .96; b.vy *= .96; b.x += b.vx*dt; b.y += b.vy*dt; if (b.falling > .75){ b.alive = false; if (practice) p.blob = spawnBlob(Math.random()*6.3, 40); else renderScores(); } continue; }
     if (control && b.stun <= 0){
-      if (p.bot) { if (practice) { p.inp = {x:0,y:0}; p.wantDash = false; p.wantAtk = false; } else botThink(p, dt); }
-      const ix = p.inp.x, iy = p.inp.y, acc = st.acc*(b.slow > 0 ? .4 : 1);
+      if (p.bot) { if (practice) { p.inp = {x:0,y:0}; p.wantDash = false; p.wantAtk = false; } else if (game.mode === "soccer") botSoccer(p, dt); else botThink(p, dt); }
+      const ix = p.inp.x, iy = p.inp.y, acc = st.acc*(b.slow > 0 ? .4 : 1)*(b.turbo > 0 ? 1.8 : 1)*(b.ice > 0 ? .3 : 1);
       b.vx += ix*acc*dt; b.vy += iy*acc*dt;
       if (p.wantDash){
         p.wantDash = false;
@@ -3314,9 +3574,9 @@ function simulate(dt){
           b.vx += dx/l*st.dashV; b.vy += dy/l*st.dashV; b.dashT = W.DASH_T; b.ch--; if (b.cd <= 0) b.cd = st.dashCd; Sfx.dash();
         }
       }
-      if (p.wantAtk){ p.wantAtk = false; if (st.atk && b.acd <= 0) doAttack(p, ix, iy); }
+      if (p.wantAtk){ p.wantAtk = false; if (st.atk && b.acd <= 0) doAttack(p, ix, iy); else if (game.mode === "soccer" && p.item) useItem(p, ix, iy); }
     } else { p.wantDash = false; p.wantAtk = false; }
-    const f = Math.exp(-(W.DAMP + (b.slow > 0 ? 2.2 : 0))*dt); b.vx *= f; b.vy *= f;
+    const f = Math.exp(-((b.ice > 0 ? .25 : W.DAMP) + (b.slow > 0 ? 2.2 : 0))*dt); b.vx *= f; b.vy *= f;
     b.x += b.vx*dt; b.y += b.vy*dt;
     const sp = Math.hypot(b.vx, b.vy); if (sp > 30) b.face = Math.atan2(b.vy, b.vx);
     if (b.dashT > 0 || sp > 300){ b.trail.push({x:b.x, y:b.y, a:1}); if (b.trail.length > 10) b.trail.shift(); }
@@ -3350,6 +3610,7 @@ function simulate(dt){
       game.parts.push({x:mx, y:my, vx:Math.cos(ang)*s, vy:Math.sin(ang)*s, life:.45, max:.45, col:"#ffffff"}); }
   }
   stepBrawl(dt, ps);
+  if (game.mode === "soccer"){ soccerPhys(dt, ps); for (const q of game.parts){ q.x += q.vx*dt; q.y += q.vy*dt; q.vx *= .92; q.vy *= .92; q.life -= dt; } game.parts = game.parts.filter(q => q.life > 0); return; }
   // ring-outs
   for (const p of ps){ const b = p.blob; if (b.falling || !b.alive) continue;
     if (Math.hypot(b.x, b.y) > game.R + b.r*.35){
@@ -3420,9 +3681,11 @@ function stepBrawl(dt, ps){
   for (const z of game.zones){
     z.t -= dt;
     for (const q of ps){ if (q === z.own || !q.blob || q.blob.falling || z.t <= 0) continue;
+      if (game.mode === "soccer" && z.own && q.team === z.own.team) continue;
       const b = q.blob, ox = b.x - z.x, oy = b.y - z.y, d = Math.hypot(ox, oy);
       if (d > z.r + b.r*.6) continue;
       if (z.kind === "slick") b.slow = .3;
+      else if (z.kind === "ice") b.ice = .3;
       else if (z.kind === "boom"){ const m = d || 1; shove(z.own, q, ox/m, oy/m, 380); z.t = 0;
         game.fx.push({kind:"pop", x:z.x, y:z.y, r:z.r + 10, t:.25, max:.25}); }
     }
@@ -3452,9 +3715,11 @@ function draw(){
     bg.addColorStop(0, "#1b4b59"); bg.addColorStop(1, "#0d2630"); g.fillStyle = bg; g.fillRect(0,0,VW,VH);
   }
   const lob = $("lobby"), side = (!lob.hidden && VW > 720) ? lob.offsetWidth : 0, AW = VW - side;
-  const sc = Math.min(AW, VH) / (W.R0*2 + 140);
+  const soc = game.mode === "soccer";
+  const sc = soc ? Math.min(AW/(2*(PITCH.FW + PITCH.GD) + 80), VH/(2*PITCH.FH + 130)) : Math.min(AW, VH) / (W.R0*2 + 140);
   game.shake *= .86; const sx = (Math.random()-.5)*game.shake, sy = (Math.random()-.5)*game.shake;
   g.save(); g.translate(side + AW/2 + sx, VH/2 + 18*sc + sy); g.scale(sc, sc);
+  if (soc){ drawPitch(g); drawItems(g); } else {
   // ghost of the full rink
   g.setLineDash([10,14]); g.strokeStyle = lcd ? LCD[1] : "rgba(159,211,220,.25)"; g.lineWidth = lcd ? 6 : 3;
   g.beginPath(); g.arc(0,0,W.R0,0,Math.PI*2); g.stroke(); g.setLineDash([]);
@@ -3472,6 +3737,7 @@ function draw(){
   g.lineWidth = lcd ? 14 : 10;
   g.strokeStyle = lcd ? (shrinking && pulse > .5 ? LCD[3] : LCD[2]) : (shrinking ? `rgba(255,93,115,${.5+pulse*.5})` : "#9fd3dc");
   g.beginPath(); g.arc(0,0,game.R,0,Math.PI*2); g.stroke();
+  }
   // trails
   for (const p of game.players.values()){ const b = p.blob; if (!b || !b.alive) continue;
     for (const t of b.trail){ g.globalAlpha = t.a*(lcd ? .5 : .35); g.fillStyle = lcd ? LCD[1] : colorOf(p.col).c; g.beginPath(); g.arc(t.x, t.y, W.BR*.85, 0, Math.PI*2); g.fill(); }
@@ -3479,6 +3745,8 @@ function draw(){
   // dash-trail zones, snowballs and attack effects
   for (const z of game.zones){ const a = clamp(z.t/z.max, 0, 1);
     if (z.kind === "slick"){ g.globalAlpha = .45*a + .1; g.fillStyle = lcd ? LCD[1] : "#7be36b"; g.beginPath(); g.arc(z.x, z.y, z.r, 0, Math.PI*2); g.fill(); }
+    else if (z.kind === "ice"){ g.globalAlpha = .5*a + .15; g.fillStyle = lcd ? LCD[0] : "#d8f6ff"; g.beginPath(); g.arc(z.x, z.y, z.r, 0, Math.PI*2); g.fill();
+      g.globalAlpha = .6*a + .2; g.strokeStyle = lcd ? LCD[2] : "#8fd8f0"; g.lineWidth = 3; g.stroke(); }
     else { g.globalAlpha = .6 + .4*Math.sin(game.t*20 + z.x); g.fillStyle = lcd ? LCD[3] : "#ffd23f"; for (let k=0;k<3;k++){ const an = game.t*6 + k*2.09 + z.y; g.beginPath(); g.arc(z.x + Math.cos(an)*z.r*.5, z.y + Math.sin(an)*z.r*.5, 5, 0, Math.PI*2); g.fill(); } }
   }
   g.globalAlpha = 1;
@@ -3491,11 +3759,13 @@ function draw(){
     else { g.strokeStyle = lcd ? LCD[3] : "#ffffff"; g.beginPath(); g.arc(f.x, f.y, f.r*(1.4 - .4*a), 0, Math.PI*2); g.stroke(); }
   }
   g.globalAlpha = 1;
+  if (soc && game.ball && !game.ball.air) drawBall(g);
   // blobs
   const blobs = [...game.players.values()].filter(p => p.blob && p.blob.alive).sort((a,b)=>a.blob.y-b.blob.y);
   for (const p of blobs){ const b = p.blob, col = blobFill(p);
     const fall = b.falling ? clamp(1 - b.falling/.75, 0, 1) : 1;
     g.save(); g.translate(b.x, b.y);
+    if (soc && !b.falling){ g.fillStyle = lcd ? LCD[3] : TEAMS[p.team].c; g.beginPath(); g.arc(0, 0, b.r + 6, 0, Math.PI*2); g.fill(); }
     if (!b.falling){ g.fillStyle = lcd ? LCD[1] : "rgba(0,40,60,.18)"; g.beginPath(); g.ellipse(4, W.BR*.75, W.BR*.95, W.BR*.38, 0, 0, Math.PI*2); g.fill(); }
     g.scale(fall*b.r/W.BR, fall*b.r/W.BR); g.globalAlpha = .3 + .7*fall;
     g.rotate(b.sqA); g.scale(1 - b.squish*.35, 1 + b.squish*.25); g.rotate(-b.sqA);
@@ -3525,6 +3795,7 @@ function draw(){
       const ny = b.y - b.r - (lcd ? 16 : 12);
       if (!lcd){ g.lineWidth = 5; g.strokeStyle = "rgba(13,38,48,.85)"; g.strokeText(p.name, b.x, ny); }
       g.fillStyle = lcd ? LCD[3] : "#ffffff"; g.fillText(p.name, b.x, ny);
+      if (soc && p.item){ g.font = "26px system-ui, sans-serif"; g.fillText(ITEMS[p.item].icon, b.x, ny - 24); g.font = "600 17px Rubik, system-ui, sans-serif"; }
       const df = dashFrac(b);
       if (df > 0){ g.strokeStyle = lcd ? LCD[2] : "rgba(13,38,48,.35)"; g.lineWidth = 4; g.beginPath(); g.arc(b.x, b.y, b.r+(lcd?14:9), -Math.PI/2, -Math.PI/2 + Math.PI*2*(1-df)); g.stroke(); }
       // loadout under the name while the round counts in
@@ -3535,6 +3806,9 @@ function draw(){
           g.fillStyle = lcd ? LCD[3] : "#ffe9a8"; g.fillText(kt, b.x, ky); } } }
   }
   g.globalAlpha = 1;
+  if (soc && game.ball && game.ball.air){ const bl = game.ball, k = Math.sin(Math.PI*(1 - bl.air/bl.airMax)); g.save();
+    g.fillStyle = "rgba(0,0,0,.25)"; g.beginPath(); g.ellipse(bl.x + 3, bl.y + bl.r*.8, bl.r, bl.r*.4, 0, 0, Math.PI*2); g.fill();
+    g.translate(0, -50*k); g.translate(bl.x, bl.y); g.scale(1 + .5*k, 1 + .5*k); g.translate(-bl.x, -bl.y); drawBall(g); g.restore(); }
   for (const q of game.parts){ g.globalAlpha = clamp(q.life/q.max, 0, 1); g.fillStyle = lcd ? LCD[3] : q.col; g.beginPath(); g.arc(q.x, q.y, lcd ? 6 : 4, 0, Math.PI*2); g.fill(); }
   g.globalAlpha = 1; g.restore();
   // banner text
@@ -3559,6 +3833,7 @@ function pushStates(){
   for (const p of game.players.values()){ if (p.bot) continue;
     const b = p.blob;
     const o = {c:p.col, n:p.name, s:p.score, a: b ? (b.alive && !b.falling ? 1 : 0) : -1, cd: b ? Math.round(dashFrac(b)*100)/100 : 0, h:p.hits};
+    if (game.mode === "soccer"){ o.s = game.goals[p.team]; o.tm = p.team; o.ctl = ctlFor(p); if (p.item) o.it = p.item; }
     if (game.mode === "brawl"){
       o.ctl = ctlFor(p); o.acd = b ? Math.round(atkFrac(b)*100)/100 : 0;
       const k = p.kit; o.k = {a:k.atk, al:k.atkLv, p:k.pas, pl:k.pasLv, t:k.trail, tl:k.trailLv, u:k.up};
@@ -3566,7 +3841,7 @@ function pushStates(){
     }
     per[p.cid] = o; }
   const humans = [...game.players.values()];
-  net.setState({gt:GAME.title, gs:GAME.sub, ctl:GAME.controls, ph:game.phase, md:game.mode, pc:humans.length, w:game.phase==="roundover"||game.phase==="matchover" ? game.banner : "", ch: game.champion ? game.champion.cid : ""}, per);
+  net.setState({gt:GAME.title, gs:GAME.sub, ctl:GAME.controls, ph:game.phase, md:game.mode, pc:humans.length, w:game.phase==="roundover"||game.phase==="matchover"||game.phase==="goal" ? game.banner + (game.phase === "goal" ? " " + game.sub : "") : "", ct:game.champTeam, ch: game.champion ? game.champion.cid : ""}, per);
 }
 
 const LOCAL = "local";
@@ -3655,7 +3930,8 @@ $("btn-fs").onclick = goFull; $("btn-fs2").onclick = goFull;
 $("btn-tolobby").onclick = () => toLobby();
 $("btn-gmode").onclick = $("mini-gmode").onclick = () => {
   if (game.phase !== "lobby") return;
-  game.mode = game.mode === "brawl" ? "sumo" : "brawl"; store.set("bb-gmode", game.mode); renderLobby();
+  game.mode = game.mode === "sumo" ? "brawl" : game.mode === "brawl" ? "soccer" : "sumo"; store.set("bb-gmode", game.mode);
+  for (const p of game.players.values()){ p.blob = null; p.item = null; } game.ball = null; game.cubes = []; game.ramps = []; game.zones = []; game.shots = []; renderLobby();
 };
 $("btn-sound").onclick = e => { Sfx.on = !Sfx.on; Sfx.unlock(); e.target.textContent = Sfx.on ? "Sound on" : "Sound off"; e.target.setAttribute("aria-pressed", String(Sfx.on)); };
 
@@ -3670,7 +3946,7 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 const buzz = ms => { if (!prefs.vibe) return; try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} };
 const prefs = {vibe: store.get("bb-vibe") !== "0", tilt:false};
 let tiltOut = null, tiltBase = null;
-function newInput(){ return {x:0, y:0, b:[0,0], sw:[0,0,0], go:0, pk:[0,0]}; }
+function newInput(){ return {x:0, y:0, b:[0,0], sw:[0,0,0], go:0, pk:[0,0], tm:0}; }
 function buildControls(moveEl, btnEl, scheme, out, emit){
   moveEl.replaceChildren(); btnEl.replaceChildren();
   moveEl.onpointerdown = moveEl.onpointermove = moveEl.onpointerup = moveEl.onpointercancel = null;
@@ -3829,12 +4105,17 @@ function onPadState(g, me){
   }
   const ph = g.ph; let st = "";
   $("padstart").hidden = !(ph === "lobby" && (g.pc||0) >= 2);
+  const soc = g.md === "soccer";
+  $("padteam").hidden = !(soc && ph === "lobby" && me);
+  if (soc && me){ $("padteam").textContent = TEAMS[me.tm|0].n + " · switch"; $("padteam").style.background = TEAMS[me.tm|0].c; }
   if (ph === "lobby") st = (g.pc||0) >= 2 ? "Lobby · " + g.pc + " players · practice!" : "Lobby · waiting for 1 more · practice!";
   else if (ph === "countdown") st = "Get ready…";
+  else if (ph === "play" && soc) st = me && me.it ? "Got " + ITEMS[me.it].n + ": tap " + ITEMS[me.it].label + " to use it" : "Push the ball into " + TEAMS[me && me.tm ? 0 : 1].n + "'s goal! Grab the ? cubes";
+  else if (ph === "goal") st = g.w || "Goal!";
   else if (ph === "play") st = me && me.a === 1 ? "Bump them off the ice!" : me && me.a === -1 ? "Joining next round" : "You're out. Next round soon";
   else if (ph === "roundover") st = g.w || "Round over";
   else if (ph === "cards") st = me && me.pick ? (me.pd ? "Took " + CARD[me.pd].n + ". Waiting for the others…" : "Pick an upgrade") : "You won the round. Others are picking…";
-  else if (ph === "matchover") st = g.ch === pad.cid ? "You're the champ!" : (g.w || "Match over");
+  else if (ph === "matchover") st = soc ? (me && g.ct === me.tm ? "Your team wins!" : (g.w || "Match over")) : g.ch === pad.cid ? "You're the champ!" : (g.w || "Match over");
   renderPadCards(ph, me);
   $("padstatustext").textContent = st;
 }
@@ -3862,6 +4143,7 @@ function renderPadCards(ph, me){
   box.hidden = false;
 }
 const padGo = () => { padState.inp.go++; padEmit(); };
+$("padteam").addEventListener("click", () => { padState.inp.tm = (padState.inp.tm|0) + 1; padEmit(); buzz(15); });
 $("padstart").addEventListener("click", padGo);
 $("pad-start").addEventListener("click", padGo);
 $("padmode").addEventListener("click", () => location.reload());
