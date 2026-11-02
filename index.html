@@ -356,6 +356,7 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
         <button id="btn-sound" aria-pressed="true">Sound on</button>
         <button id="btn-less">Hide lobby</button>
         <button id="btn-mode">Switch mode</button>
+        <a href="sports/" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:12px;background:#ffd23f;color:#1a1a2e;font-weight:800;text-decoration:none">3D Pocket Sports</a>
       </div>
       <p class="hint" id="lobbyhint">Steer with the stick, tap DASH to ram. The rink shrinks after a few seconds. Joined players can practice on the rink right away. Any phone can press Start once 2 players are in.</p>
       <p class="hint" id="modehint"></p>
@@ -2913,7 +2914,7 @@ class PadNet {
         });
         conn.on("close", () => { clearInterval(this.hb); clearInterval(dog); this.onStatus("lost"); });
       });
-      setTimeout(() => fail("Timed out reaching the game. Make sure the big screen is still on the lobby page."), 15000);
+      setTimeout(() => { if (!done) fail("Timed out reaching the game. Make sure the big screen is still on the lobby page."); }, 15000);
     });
   }
   send(inp){ this.inp = inp; this.flush(false); }
