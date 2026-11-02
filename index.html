@@ -104,6 +104,7 @@ a{color:var(--acc)}
 #pdraw[hidden]{display:none}
 #ptilt{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:420px}
 #ptilt[hidden]{display:none}
+#pstick[hidden]{display:none}
 #pstick{width:170px;height:170px;border-radius:50%;background:var(--panel);border:3px solid var(--panel2);position:relative;touch-action:none}
 #pstickdot{position:absolute;width:44px;height:44px;border-radius:50%;left:60px;top:60px;background:var(--acc);box-shadow:0 0 0 5px rgba(255,210,63,.25)}
 #pjump{width:100%;height:min(24vh,170px);font-size:1.6rem;touch-action:manipulation}
@@ -432,7 +433,7 @@ const Pad = {
     if (!rr && !ag) return;
     if (this.motion !== "on"){ this.motion = "on"; if (this.mode === "m") this.hint(""); this.render(); }
     if (this.mode !== "m") return;
-    if ((this.g || {}).pm === "bow" || (this.g || {}).pm === "tilt") return;
+    if (["bow", "tilt", "mash"].includes((this.g || {}).pm)) return;
     let iv = +e.interval || 16; if (iv < 1) iv *= 1000; const dt = clamp(iv/1000, .004, .05);
     const now = performance.now(), D = this.det;
     // gravity direction (device frame) and linear acceleration
@@ -564,9 +565,11 @@ const Pad = {
     $("aim").hidden = !(m && this.motion === "on");
     $("btn-cal").hidden = !(m && this.motion === "on");
     const bow = g.pm === "bow" && g.ph === "play";
-    const tilt = g.pm === "tilt" && g.ph === "play";
-    $("swipe").hidden = m || bow || tilt; $("pdraw").hidden = !bow; $("ptilt").hidden = !tilt;
-    if (tilt) $("aim").hidden = true;
+    const tilt = g.pm === "tilt" && g.ph === "play", mash = g.pm === "mash" && g.ph === "play";
+    $("swipe").hidden = m || bow || tilt || mash; $("pdraw").hidden = !bow; $("ptilt").hidden = !(tilt || mash);
+    $("pstick").hidden = mash; $("pjump").textContent = mash ? "TAP!" : "Jump"; $("pjump").style.height = mash ? "min(42vh,320px)" : "";
+    if (tilt || mash) $("aim").hidden = true;
+    $("btn-cal").hidden = $("btn-cal").hidden || mash; $("btn-mode").hidden = mash;
     if (!$("phint").textContent || this.lastHintG !== g.gm){
       this.lastHintG = g.gm; this.tcal = null; this.inp.tx = this.inp.ty = 0;
       if (m && this.motion === "on") this.hint(g.pad || "Hold the phone like a paddle handle, screen facing the TV, then tap Recenter. Swing to hit.");
@@ -575,7 +578,7 @@ const Pad = {
 };
 
 /* ==================== HOST (big screen) ==================== */
-const GAME_FILES = ["pingpong", "bowling", "tennis", "golf", "archery", "tiltball"];
+const GAME_FILES = ["pingpong", "bowling", "tennis", "golf", "archery", "tiltball", "minis"];
 const GAMES = [];
 function registerGame(def){ GAMES.push(def); }
 const SOON = [
