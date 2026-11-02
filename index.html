@@ -102,6 +102,11 @@ a{color:var(--acc)}
 #swipe[hidden]{display:none}
 #pdraw{position:relative;overflow:hidden;width:100%;max-width:420px;height:min(34vh,260px);border-radius:24px;background:var(--panel);border:3px solid var(--panel2);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1.4rem;color:#dfe5ff;text-align:center;touch-action:none;user-select:none;-webkit-user-select:none}
 #pdraw[hidden]{display:none}
+#ptilt{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:420px}
+#ptilt[hidden]{display:none}
+#pstick{width:170px;height:170px;border-radius:50%;background:var(--panel);border:3px solid var(--panel2);position:relative;touch-action:none}
+#pstickdot{position:absolute;width:44px;height:44px;border-radius:50%;left:60px;top:60px;background:var(--acc);box-shadow:0 0 0 5px rgba(255,210,63,.25)}
+#pjump{width:100%;height:min(24vh,170px);font-size:1.6rem;touch-action:manipulation}
 #pdraw small{display:block;font-size:.8rem;font-weight:600;color:#9aa7d6}
 #pdrawfill{position:absolute;left:0;bottom:0;width:100%;height:0;background:linear-gradient(0deg,rgba(255,210,63,.55),rgba(255,210,63,.15))}
 #pdrawtxt{position:relative}
@@ -178,10 +183,11 @@ a{color:var(--acc)}
     <button id="btn-motion" class="big acc" hidden>Tap to enable motion</button>
     <div id="aim" hidden><div id="aimdot"></div></div>
     <div id="swipe" hidden>Swipe up across here to swing</div>
+    <div id="ptilt" hidden><div id="pstick"><div id="pstickdot"></div></div><button id="pjump" class="big acc">Jump</button></div>
     <div id="pdraw" hidden><div id="pdrawfill"></div><span id="pdrawtxt">Hold to draw<small>let go to shoot</small></span></div>
     <div class="row">
       <button id="btn-cal" hidden>Recenter</button>
-      <button id="btn-mode">Use swipe instead</button>
+      <button id="btn-mode">Use touch instead</button>
     </div>
     <div id="pvote" hidden></div>
     <button id="btn-go" class="big acc" hidden>Start</button>
@@ -306,7 +312,7 @@ class PadNet {
   send(inp, force){ this.inp = inp; this.flush(!!force); }
   flush(force){
     const i = this.inp; if (!i || !this.conn || !this.conn.open) return;
-    const m = {yaw:Math.round(i.yaw), pit:Math.round(i.pit), sw:i.sw.slice(0,5).map(v => +(+v).toFixed(3)), go:i.go, mo:i.mo, vt:i.vt, dr:i.dr ? 1 : 0};
+    const m = {yaw:Math.round(i.yaw), pit:Math.round(i.pit), sw:i.sw.slice(0,5).map(v => +(+v).toFixed(3)), go:i.go, mo:i.mo, vt:i.vt, dr:i.dr ? 1 : 0, tx:Math.round((i.tx||0)*100), ty:Math.round((i.ty||0)*100)};
     const key = JSON.stringify(m);
     const now = performance.now();
     if (!force && key === this.lastKey && now - this.lastSend < 33) return;
@@ -354,7 +360,7 @@ const Pad = {
     $("pname").textContent = name;
     try { if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(()=>{}); } catch(e){}
     document.addEventListener("visibilitychange", () => { try { if (!document.hidden && navigator.wakeLock) navigator.wakeLock.request("screen").catch(()=>{}); } catch(e){} });
-    this.setupMotion(); this.setupSwipe(); this.setupDraw();
+    this.setupMotion(); this.setupSwipe(); this.setupDraw(); this.setupTilt();
     $("btn-cal").onclick = () => { this.calibrate(); this.flash(); };
     $("btn-mode").onclick = () => this.setMode(this.mode === "m" ? "t" : "m");
     $("btn-go").onclick = () => { this.inp.go++; this.net.send(this.inp, true); };
@@ -363,7 +369,7 @@ const Pad = {
   },
   setMode(m){
     this.mode = m; this.inp.mo = m; store.set("ps-mode", m);
-    $("btn-mode").textContent = m === "m" ? "Use swipe instead" : "Use motion instead";
+    $("btn-mode").textContent = m === "m" ? "Use touch instead" : "Use motion instead";
     if (m === "t"){ this.pose = {yaw:0, pit:0}; this.inp.yaw = 0; this.inp.pit = 0; }
     this.render(); this.net.send(this.inp, true);
   },
@@ -396,6 +402,15 @@ const Pad = {
     const n = [ca*sg + sa*sb*cg, sa*sg - ca*sb*cg, cb*cg];
     const top = [-sa*cb, ca*cb, sb];
     this.lastOri = {n, top};
+    this.lastBG = {b:e.beta||0, g:e.gamma||0};
+    if ((this.g || {}).pm === "tilt" && this.mode === "m"){
+      if (!this.tcal) this.tcal = this.lastBG;
+      // device-frame tilt: x = right side down, y = top edge away from you; then turn it to the screen's frame
+      const dx = clamp((this.lastBG.g - this.tcal.g)/25, -1, 1), dy = clamp(-(this.lastBG.b - this.tcal.b)/25, -1, 1);
+      const th = ((screen.orientation && screen.orientation.angle) || window.orientation || 0)*Math.PI/180;
+      this.inp.tx = clamp(Math.cos(th)*dx - Math.sin(th)*dy, -1, 1); this.inp.ty = clamp(Math.sin(th)*dx + Math.cos(th)*dy, -1, 1);
+      this.drawStick();
+    }
     if (!this.cal) this.calibrate();
     const c = this.cal, v = c.useTop ? top : n;
     const az = Math.atan2(v[0], v[1]), el = Math.asin(clamp(v[2], -1, 1));
@@ -407,6 +422,7 @@ const Pad = {
     this.net.send(this.inp); this.drawAim();
   },
   calibrate(){
+    this.tcal = this.lastBG || null;
     const o = this.lastOri; if (!o){ this.cal = null; return; }
     const useTop = Math.abs(o.n[2]) > .8; const v = useTop ? o.top : o.n;
     this.cal = {useTop, az:Math.atan2(v[0], v[1]), el:Math.asin(clamp(v[2],-1,1))};
@@ -416,7 +432,7 @@ const Pad = {
     if (!rr && !ag) return;
     if (this.motion !== "on"){ this.motion = "on"; if (this.mode === "m") this.hint(""); this.render(); }
     if (this.mode !== "m") return;
-    if ((this.g || {}).pm === "bow") return;
+    if ((this.g || {}).pm === "bow" || (this.g || {}).pm === "tilt") return;
     let iv = +e.interval || 16; if (iv < 1) iv *= 1000; const dt = clamp(iv/1000, .004, .05);
     const now = performance.now(), D = this.det;
     // gravity direction (device frame) and linear acceleration
@@ -493,6 +509,16 @@ const Pad = {
     };
     z.addEventListener("pointerup", end); z.addEventListener("pointercancel", end);
   },
+  setupTilt(){
+    const st = $("pstick"); let o = null;
+    const set = (x, y) => { this.inp.tx = clamp(x, -1, 1); this.inp.ty = clamp(y, -1, 1); this.drawStick(); this.net.send(this.inp); };
+    st.addEventListener("pointerdown", e => { if (this.mode !== "t") return; const r = st.getBoundingClientRect(); o = {x:r.left + r.width/2, y:r.top + r.height/2}; st.setPointerCapture && st.setPointerCapture(e.pointerId); set((e.clientX - o.x)/60, -(e.clientY - o.y)/60); e.preventDefault(); });
+    st.addEventListener("pointermove", e => { if (o) set((e.clientX - o.x)/60, -(e.clientY - o.y)/60); });
+    const up = () => { if (!o) return; o = null; set(0, 0); this.net.send(this.inp, true); };
+    st.addEventListener("pointerup", up); st.addEventListener("pointercancel", up);
+    $("pjump").addEventListener("pointerdown", e => { e.preventDefault(); this.fire(1, 0, 0, 0, performance.now()); });
+  },
+  drawStick(){ const d = $("pstickdot"); d.style.left = (63 + (this.inp.tx||0)*60) + "px"; d.style.top = (63 - (this.inp.ty||0)*60) + "px"; },
   drawAim(){
     const d = $("aimdot"); if (!d) return;
     d.style.left = (60 + clamp(this.pose.yaw/45, -1, 1)*55) + "px";
@@ -538,16 +564,18 @@ const Pad = {
     $("aim").hidden = !(m && this.motion === "on");
     $("btn-cal").hidden = !(m && this.motion === "on");
     const bow = g.pm === "bow" && g.ph === "play";
-    $("swipe").hidden = m || bow; $("pdraw").hidden = !bow;
+    const tilt = g.pm === "tilt" && g.ph === "play";
+    $("swipe").hidden = m || bow || tilt; $("pdraw").hidden = !bow; $("ptilt").hidden = !tilt;
+    if (tilt) $("aim").hidden = true;
     if (!$("phint").textContent || this.lastHintG !== g.gm){
-      this.lastHintG = g.gm;
+      this.lastHintG = g.gm; this.tcal = null; this.inp.tx = this.inp.ty = 0;
       if (m && this.motion === "on") this.hint(g.pad || "Hold the phone like a paddle handle, screen facing the TV, then tap Recenter. Swing to hit.");
     }
   }
 };
 
 /* ==================== HOST (big screen) ==================== */
-const GAME_FILES = ["pingpong", "bowling", "tennis", "golf", "archery"];
+const GAME_FILES = ["pingpong", "bowling", "tennis", "golf", "archery", "tiltball"];
 const GAMES = [];
 function registerGame(def){ GAMES.push(def); }
 const SOON = [
@@ -652,7 +680,7 @@ const Core = {
   input(cid, m, rtt){
     const s = this.seatOf(cid); if (!s) return;
     s.rtt = rtt; s.mo = m.mo === "t" ? "t" : "m";
-    s.yaw = clamp(+m.yaw||0, -90, 90); s.pit = clamp(+m.pit||0, -90, 90); s.dr = m.dr ? 1 : 0;
+    s.yaw = clamp(+m.yaw||0, -90, 90); s.pit = clamp(+m.pit||0, -90, 90); s.dr = m.dr ? 1 : 0; s.tx = clamp((+m.tx||0)/100, -1, 1); s.ty = clamp((+m.ty||0)/100, -1, 1);
     const sw = Array.isArray(m.sw) ? m.sw : [0];
     const n = sw[0]|0;
     if (s.swSeen === null) s.swSeen = n;
