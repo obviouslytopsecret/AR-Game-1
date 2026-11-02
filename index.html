@@ -144,6 +144,7 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
   font-variant-numeric:tabular-nums}
 .chip i{width:20px;height:20px;border-radius:50%;display:block}
 .chip.out{opacity:.4}
+.chip em{font-style:normal;font-weight:400;color:var(--muted);font-size:.85em}
 #scores.many{gap:4px}#scores.many .chip{font-size:11px;padding:3px 8px 3px 3px;gap:5px}#scores.many .chip i{width:12px;height:12px}
 #codechip{position:absolute;top:max(12px,env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));background:var(--panel);
   border-radius:12px;padding:8px 12px;font-size:13px;color:var(--muted);text-align:right}
@@ -230,6 +231,26 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
   color:#f4efe3;text-align:center;padding:16px;box-sizing:border-box}
 #padover p{margin:0;max-width:22em;line-height:1.4;opacity:.85}
 #padover b{font-family:var(--display);font-weight:400;font-size:34px}
+#padcards{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px;box-sizing:border-box;
+  background:rgba(40,38,34,.92);color:#f4efe3;text-align:center}
+#padcards h2{margin:0;font:400 26px var(--display)}
+#padcards .row{display:flex;gap:10px;width:100%;max-width:760px;justify-content:center}
+#padcards .card{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:left;padding:14px;border-radius:16px;
+  background:#f4efe3;color:#2d2b27;box-shadow:0 6px 0 #a59c88;font-weight:400}
+#padcards .card:active{transform:translateY(3px);box-shadow:0 3px 0 #a59c88}
+#padcards .card small{font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--kc,#7a6f5a)}
+#padcards .card b{font:400 22px var(--display);line-height:1.05}
+#padcards .card span{font-size:14px;line-height:1.35}
+#padcards .card em{font-style:normal;font-size:12px;font-weight:700;color:#8a4b2e}
+#padcards p{margin:0;opacity:.85;max-width:26em;line-height:1.4}
+@media (orientation:portrait){#padcards .row{flex-direction:column}#padcards .card{flex:none;width:100%}}
+#cardpanel{position:absolute;left:50%;top:58%;transform:translate(-50%,0);display:flex;flex-direction:column;gap:6px;width:min(92%,760px);max-height:40%;overflow:auto;pointer-events:auto}
+#cardpanel .pk{display:flex;align-items:center;gap:10px;background:var(--panel);border-radius:14px;padding:8px 12px;font-weight:600;font-size:15px}
+#cardpanel .pk i{width:18px;height:18px;border-radius:50%;flex:0 0 auto}
+#cardpanel .pk span{color:var(--muted);font-weight:400;margin-left:auto;text-align:right}
+#cardpanel .pk button{padding:6px 10px;font-size:13px;border-radius:10px}
+#host.solo #cardpanel .pk{background:var(--lcd1);color:var(--lcd3);font-family:var(--pixel);font-weight:400;font-size:11px}
+#host.solo #cardpanel .pk span{color:var(--lcd2)}
 #padsheet{position:absolute;inset:0;z-index:6;background:rgba(30,30,28,.55);display:flex;align-items:flex-end;justify-content:center}
 #sheetbody{width:min(100%,440px);max-height:92%;overflow:auto;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;
   background:var(--shell);color:#3b3a36;border-radius:18px 18px 0 0;padding:18px 18px max(18px,env(safe-area-inset-bottom,0px));box-shadow:0 -4px 0 #bdb5a3}
@@ -308,6 +329,7 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
     <div id="codechip">Join code<b id="codechip-code">----</b></div>
     <div id="banner"></div>
     <div id="feed"></div>
+    <div id="cardpanel" hidden></div>
     <div id="hostbtns"><button id="btn-tolobby">Lobby</button><button id="btn-fs2">Full screen</button></div>
   </div>
   <div id="lobby">
@@ -325,6 +347,7 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
       <div id="players"></div>
       <div class="lobbybtns">
         <button id="btn-start" class="go" disabled>Start match</button>
+        <button id="btn-gmode">Mode: Sumo</button>
         <button id="btn-addbot">Add CPU</button>
         <button id="btn-rmbot">Remove CPU</button>
         <button id="btn-fs">Full screen</button>
@@ -333,10 +356,11 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
         <button id="btn-mode">Switch mode</button>
       </div>
       <p class="hint" id="lobbyhint">Steer with the stick, tap DASH to ram. The rink shrinks after a few seconds. Joined players can practice on the rink right away. Any phone can press Start once 2 players are in.</p>
+      <p class="hint" id="modehint"></p>
       <p id="host-err" class="err"></p>
     </div>
     <div id="lobbymini"><b id="mini-code">----</b><span id="mini-count">0 players</span>
-      <button id="mini-start" class="go" disabled>Start</button><button id="mini-addbot">Add CPU</button><button id="mini-more">Lobby</button></div>
+      <button id="mini-start" class="go" disabled>Start</button><button id="mini-gmode">Sumo</button><button id="mini-addbot">Add CPU</button><button id="mini-more">Lobby</button></div>
   </div>
  </div>
  <div id="localpad">
@@ -383,6 +407,7 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
     <div id="btnzone" class="btnzone"></div>
   </div>
   <div id="padpills"><div><button id="pad-menu" aria-label="Menu"></button>MENU</div><div class="padmini"><i></i><span id="padmini"></span><b id="padminiscore">0</b></div><div><button id="pad-start" aria-label="Start"></button>START</div></div>
+  <div id="padcards" hidden></div>
   <div id="padover" hidden><b id="padover-title"></b><p id="padover-text"></p><button id="padover-btn" class="go" hidden></button></div>
   <div id="padsheet" hidden><div id="sheetbody"></div></div>
 </section>
@@ -2746,7 +2771,8 @@ function peerOptions(){
 function normIn(m){
   const b = Array.isArray(m.b) ? [m.b[0]|0, m.b[1]|0] : [m.d|0, 0];
   const sw = Array.isArray(m.sw) ? [m.sw[0]|0, +m.sw[1]||0, +m.sw[2]||0] : [0,0,0];
-  return {x:+m.x||0, y:+m.y||0, b, sw, go:m.go|0};
+  const pk = Array.isArray(m.pk) ? [m.pk[0]|0, m.pk[1]|0] : [0,0];
+  return {x:+m.x||0, y:+m.y||0, b, sw, go:m.go|0, pk};
 }
 /* Host side: emits hello / input / leave, sends per-player state */
 class HostNet {
@@ -2891,7 +2917,7 @@ class PadNet {
   send(inp){ this.inp = inp; this.flush(false); }
   flush(force){
     const i = this.inp; if (!i) return;
-    const m = {x:+i.x.toFixed(3), y:+i.y.toFixed(3), d:i.b[0], b:i.b.slice(0,2), sw:i.sw.slice(0,3), go:i.go};
+    const m = {x:+i.x.toFixed(3), y:+i.y.toFixed(3), d:i.b[0], b:i.b.slice(0,2), sw:i.sw.slice(0,3), go:i.go, pk:(i.pk || [0,0]).slice(0,2)};
     const key = JSON.stringify(m);
     if (!force && key === this.lastKey) return; this.lastKey = key;
     if (transportKind === "room"){ roomApi.presence(m).catch(()=>{}); return; }
@@ -2927,11 +2953,96 @@ const Sfx = {
 const GAME = {
   title:"BUMPER BLOBS", sub:"Shrinking-rink brawl",
   controls:{move:"stick", buttons:["DASH"]},
-  onButton(p, i){ if (i === 0) p.wantDash = true; },
+  onButton(p, i){ if (i === 0) p.wantDash = true; else if (i === 1) p.wantAtk = true; },
   onSwipe(p, dx, dy){}
 };
 const W = {R0:420, RMIN:125, BASE_R0:420, BASE_RMIN:125, SHRINK_DELAY:5, SHRINK_TIME:40, BR:26, ACC:1150, DAMP:3.0, DASH_V:640, DASH_T:.22, DASH_CD:1.4, E:.9, KNOCK:150};
+
+/* ---------- Fantasy Brawl: upgrade cards ----------
+   Data-driven: add a card by adding a row. Kinds: atk (sets or levels your one attack), pas (sets or levels
+   your one passive), trail (sets or levels your dash trail), up (stacking upgrade, capped by max). */
+const ATTACKS = {
+  bolt:  {label:"THROW", cd:1.1},
+  slash: {label:"SLASH", cd:1.3},
+  bop:   {label:"BOP",   cd:1.6},
+  quake: {label:"QUAKE", cd:2.2}
+};
+const CARDS = [
+  {id:"bolt",   n:"Snowball",      k:"Attack",  atk:"bolt",  d:"Throw a snowball that knocks back whoever it hits."},
+  {id:"slash",  n:"Fin Slash",     k:"Attack",  atk:"slash", d:"A wide swipe in front of you that sends blobs flying."},
+  {id:"bop",    n:"Frost Bop",     k:"Attack",  atk:"bop",   d:"A short jab that freezes the blob you hit for a second."},
+  {id:"quake",  n:"Belly Quake",   k:"Attack",  atk:"quake", d:"Slam the ice and shove everyone near you away."},
+  {id:"pow",    n:"Heavy Hitter",  k:"Attack upgrade", up:"pow",  max:3, need:"atk", d:"Your attack knocks back 40% harder."},
+  {id:"rate",   n:"Quick Draw",    k:"Attack upgrade", up:"rate", max:3, need:"atk", d:"Your attack recharges 30% faster."},
+  {id:"area",   n:"Big Swing",     k:"Attack upgrade", up:"area", max:3, need:"atk", d:"Your attack reaches 35% farther."},
+  {id:"slick",  n:"Slick Trail",   k:"Dash",    trail:"slick", d:"Dashing leaves goo that slows anyone else who touches it."},
+  {id:"boom",   n:"Spark Trail",   k:"Dash",    trail:"boom",  d:"Dashing leaves sparks that pop other blobs away."},
+  {id:"ram",    n:"Ram Horns",     k:"Dash",    up:"ram",    max:2, d:"Dashing into someone hits much harder."},
+  {id:"dbl",    n:"Double Dash",   k:"Dash",    up:"dbl",    max:2, d:"Hold one more dash charge."},
+  {id:"spring", n:"Spring Feet",   k:"Dash",    up:"spring", max:3, d:"Dash recharges 35% faster and goes a bit farther."},
+  {id:"heavy",  n:"Big Boned",     k:"Passive", pas:"heavy",  d:"Much harder to push around, but a little slower."},
+  {id:"zoom",   n:"Zoomies",       k:"Passive", pas:"zoom",   d:"Move 25% faster."},
+  {id:"spiky",  n:"Spiky",         k:"Passive", pas:"spiky",  d:"Anyone who bumps into you bounces off extra hard."},
+  {id:"bubble", n:"Bubble Shield", k:"Passive", pas:"bubble", d:"Each round, a bubble blocks one big hit."}
+];
+const CARD = Object.fromEntries(CARDS.map(c => [c.id, c]));
+const KIND_COL = {"Attack":"#c0392b", "Attack upgrade":"#b4561f", "Dash":"#2f6fb5", "Passive":"#2f8a57"};
+const newKit = () => ({atk:null, atkLv:0, pas:null, pasLv:0, trail:null, trailLv:0, up:{}});
+function cardNote(c, kit){
+  if (!kit) return "";
+  if (c.atk) return kit.atk === c.atk ? "Levels up your attack" : kit.atk ? "Replaces " + CARD[kit.atk].n : "";
+  if (c.pas) return kit.pas === c.pas ? "Levels up your passive" : kit.pas ? "Replaces " + CARD[kit.pas].n : "";
+  if (c.trail) return kit.trail === c.trail ? "Longer lasting trail" : kit.trail ? "Replaces " + CARD[kit.trail].n : "";
+  if (c.up) return (kit.up[c.up] || 0) ? "Stacks (" + ((kit.up[c.up]||0) + 1) + "x)" : "";
+  return "";
+}
+function cardOk(c, kit){ if (c.need === "atk" && !kit.atk) return false; if (c.up && (kit.up[c.up] || 0) >= c.max) return false; return true; }
+function drawOffer(kit){
+  const pool = CARDS.filter(c => cardOk(c, kit)).sort(() => Math.random() - .5);
+  const out = pool.slice(0, 3);
+  // without an attack, one of the three is always an attack, so everyone gets a button early
+  if (!kit.atk && !out.some(c => c.atk)){ const a = pool.find(c => c.atk); if (a) out[2] = a; }
+  return out.map(c => c.id);
+}
+function applyCard(kit, id){
+  const c = CARD[id]; if (!c) return;
+  if (c.atk){ if (kit.atk === c.atk) kit.atkLv++; else { kit.atk = c.atk; kit.atkLv = 1; } }
+  else if (c.pas){ if (kit.pas === c.pas) kit.pasLv++; else { kit.pas = c.pas; kit.pasLv = 1; } }
+  else if (c.trail){ if (kit.trail === c.trail) kit.trailLv++; else { kit.trail = c.trail; kit.trailLv = 1; } }
+  else if (c.up) kit.up[c.up] = Math.min(c.max, (kit.up[c.up] || 0) + 1);
+}
+function kitText(kit){
+  if (!kit) return "";
+  const lv = (id, n) => CARD[id].n + (n > 1 ? " " + n : "");
+  const out = [];
+  if (kit.atk) out.push(lv(kit.atk, kit.atkLv));
+  if (kit.trail) out.push(lv(kit.trail, kit.trailLv));
+  if (kit.pas) out.push(lv(kit.pas, kit.pasLv));
+  for (const c of CARDS) if (c.up && kit.up[c.up]) out.push(lv(c.id, kit.up[c.up]));
+  return out.join(" · ");
+}
+// Base stats are exactly classic Sumo, so Sumo plays the same as before
+function baseStats(){ return {acc:W.ACC, mass:1, r:W.BR, dashV:W.DASH_V, dashCd:W.DASH_CD, charges:1, ram:1,
+  atk:null, atkCd:1, pow:1, area:1, lv:1, spiky:0, shields:0, trail:null, trailLv:0}; }
+function kitStats(kit){
+  const s = baseStats(); if (!kit) return s;
+  const u = kit.up;
+  if (kit.atk){ s.atk = kit.atk; s.lv = kit.atkLv;
+    s.pow = Math.pow(1.4, u.pow || 0) * (1 + .25*(kit.atkLv - 1));
+    s.atkCd = ATTACKS[kit.atk].cd * Math.pow(.7, u.rate || 0) * Math.pow(.88, kit.atkLv - 1);
+    s.area = Math.pow(1.35, u.area || 0); }
+  s.ram = 1 + .9*(u.ram || 0); s.charges = 1 + (u.dbl || 0);
+  s.dashCd = W.DASH_CD * Math.pow(.65, u.spring || 0); s.dashV = W.DASH_V * (1 + .15*(u.spring || 0));
+  const pl = kit.pasLv;
+  if (kit.pas === "heavy"){ s.mass = 1 + .6*pl; s.acc *= Math.pow(.9, pl); s.r = W.BR*(1 + .06*pl); }
+  if (kit.pas === "zoom") s.acc *= 1 + .25*pl;
+  if (kit.pas === "spiky") s.spiky = pl;
+  if (kit.pas === "bubble") s.shields = pl;
+  s.trail = kit.trail; s.trailLv = kit.trailLv;
+  return s;
+}
 const game = {
+  mode: store.get("bb-gmode") === "brawl" ? "brawl" : "sumo", shots:[], zones:[], fx:[], pickers:[],
   phase:"lobby", players:new Map(), order:[], t:0, phaseT:0, R:W.R0, banner:"", sub:"", feed:[], parts:[], shake:0,
   roundNo:0, champion:null, lastGo:new Map()
 };
@@ -2948,7 +3059,7 @@ function sizeArena(n){
   W.R0 = Math.round(W.BASE_R0*k); W.RMIN = Math.round(W.BASE_RMIN*k);
 }
 function addPlayer(cid, name, col, bot){
-  const p = {cid, name:name || "Blob", col:freeColor(col), score:0, bot:!!bot, connected:true, inp:{x:0,y:0}, bSeen:[0,0], swSeen:0, goSeen:0, blob:null, hits:0, wander:Math.random()*6};
+  const p = {cid, name:name || "Blob", col:freeColor(col), score:0, bot:!!bot, connected:true, inp:{x:0,y:0}, bSeen:[0,0], swSeen:0, goSeen:0, blob:null, hits:0, wander:Math.random()*6, kit:newKit(), pkSeen:null, offer:null, picked:null};
   game.players.set(cid, p); game.order.push(cid);
   return p;
 }
@@ -2960,7 +3071,7 @@ const hostHandlers = {
     if (p){ // reconnect, or a rename / recolor from the phone
       p.connected = true; p.name = name;
       if (Number.isInteger(info.color) && info.color !== p.col){ const c = freeColor(info.color); if (c === info.color) p.col = c; }
-      p.bSeen = null; p.swSeen = null; p.goSeen = null; renderLobby(); return true; }
+      p.bSeen = null; p.swSeen = null; p.goSeen = null; p.pkSeen = null; renderLobby(); return true; }
     p = addPlayer(cid, name, Number.isInteger(info.color) ? info.color : -1, false);
     feed(p.name + " joined");
     renderLobby(); return true;
@@ -2975,6 +3086,9 @@ const hostHandlers = {
     const sw = inp.sw || [0,0,0];
     if (p.swSeen === null) p.swSeen = sw[0];
     else if (sw[0] !== p.swSeen){ p.swSeen = sw[0]; GAME.onSwipe(p, sw[1], sw[2]); }
+    const pk = inp.pk || [0,0];
+    if (p.pkSeen === null) p.pkSeen = pk[0];
+    else if (pk[0] !== p.pkSeen){ p.pkSeen = pk[0]; pickCard(p, pk[1]); }
     if (p.goSeen === null) p.goSeen = inp.go;
     else if (inp.go !== p.goSeen){ p.goSeen = inp.go; if (game.phase === "lobby") tryStart(); }
   },
@@ -3009,6 +3123,10 @@ function renderLobby(){
   $("mini-addbot").disabled = false;
   $("btn-rmbot").disabled = !list.some(p => p.bot);
   $("btn-addbot").disabled = false;
+  const br = game.mode === "brawl";
+  $("btn-gmode").textContent = "Mode: " + (br ? "Fantasy Brawl" : "Sumo"); $("mini-gmode").textContent = br ? "Brawl" : "Sumo";
+  $("modehint").textContent = br ? "Fantasy Brawl: after each round, everyone except the winner picks an upgrade card on their phone, like a snowball throw, a slash, a dash trail or a shield. Cards stack all match." : "Sumo: classic shove-off. Just the stick and DASH.";
+  GAME.sub = br ? "Fantasy Brawl" : "Shrinking-rink brawl";
   if (game.phase === "lobby"){ sizeArena(list.length); game.R = W.R0; }
   renderScores();
 }
@@ -3018,19 +3136,22 @@ function renderScores(){
   for (const c of game.order){ const p = game.players.get(c); if (!p) continue;
     const d = document.createElement("div"); d.className = "chip" + (p.blob && !p.blob.alive ? " out" : "");
     const i = document.createElement("i"); i.style.background = lcd ? blobFill(p) : colorOf(p.col).c;
-    d.append(i, document.createTextNode(p.name + "  " + p.score)); el.appendChild(d); }
+    d.append(i, document.createTextNode(p.name + "  " + p.score));
+    if (game.mode === "brawl"){ const kt = kitText(p.kit); if (kt){ const e = document.createElement("em"); e.textContent = kt; d.appendChild(e); } }
+    el.appendChild(d); }
 }
 
 function tryStart(){
   if (game.phase !== "lobby" || game.players.size < 2) return;
-  for (const p of game.players.values()) p.score = 0;
+  for (const p of game.players.values()){ p.score = 0; p.kit = newKit(); p.offer = null; p.picked = null; }
   game.champion = null; game.roundNo = 0;
   $("lobby").hidden = true; $("hud").hidden = false;
-  startRound();
+  if (game.mode === "brawl") beginCards([...game.players.values()], true); else startRound();
 }
 function toLobby(){
-  game.phase = "lobby"; game.R = W.R0;
-  for (const [cid, p] of [...game.players]){ p.blob = null; if (!p.connected && !p.bot) removePlayer(cid); }
+  game.phase = "lobby"; game.R = W.R0; game.shots = []; game.zones = []; game.fx = []; game.pickers = [];
+  $("cardpanel").hidden = true;
+  for (const [cid, p] of [...game.players]){ p.blob = null; p.kit = newKit(); p.offer = null; p.picked = null; if (!p.connected && !p.bot) removePlayer(cid); }
   $("lobby").hidden = false; $("hud").hidden = true; $("banner").textContent = "";
   renderLobby();
 }
@@ -3041,14 +3162,60 @@ function startRound(){
   sizeArena(n);
   list.forEach((p, i) => {
     const a = rot + i/n*Math.PI*2, r = W.R0*.62;
-    p.blob = spawnBlob(a, r);
-    p.wantDash = false;
+    p.blob = spawnBlob(a, r, p);
+    p.wantDash = false; p.wantAtk = false;
   });
   for (const p of game.players.values()) if (!list.includes(p)) p.blob = null;
-  game.R = W.R0; game.parts = [];
+  game.R = W.R0; game.parts = []; game.shots = []; game.zones = []; game.fx = []; game.pickers = [];
+  $("cardpanel").hidden = true;
   setPhase("countdown");
 }
-function spawnBlob(a, r){ return {x:Math.cos(a)*r, y:Math.sin(a)*r, vx:0, vy:0, face:a+Math.PI, alive:true, falling:0, dashT:0, cd:0, squish:0, sqA:0, lastHitBy:null, lastHitT:-9, trail:[]}; }
+function spawnBlob(a, r, p){
+  const st = p && game.mode === "brawl" ? kitStats(p.kit) : baseStats();
+  return {x:Math.cos(a)*r, y:Math.sin(a)*r, vx:0, vy:0, face:a+Math.PI, alive:true, falling:0, dashT:0, cd:0, ch:st.charges, st, r:st.r,
+    acd:0, stun:0, slow:0, drop:0, shield:st.shields, squish:0, sqA:0, lastHitBy:null, lastHitT:-9, trail:[]};
+}
+const dashFrac = b => b.ch > 0 ? 0 : clamp(b.cd/b.st.dashCd, 0, 1);
+const atkFrac = b => b.st.atk ? clamp(b.acd/b.st.atkCd, 0, 1) : 0;
+function ctlFor(p){
+  const st = p.blob ? p.blob.st : (game.mode === "brawl" ? kitStats(p.kit) : null);
+  return st && st.atk ? {move:"stick", buttons:["DASH", ATTACKS[st.atk].label]} : GAME.controls;
+}
+// ---- card picks between rounds (Fantasy Brawl) ----
+function beginCards(pickers, first){
+  game.pickers = pickers.filter(p => p.connected || p.bot).map(p => p.cid);
+  if (!game.pickers.length){ startRound(); return; }
+  for (const p of game.players.values()){ p.offer = null; p.picked = null; }
+  for (const c of game.pickers){ const p = game.players.get(c); p.offer = drawOffer(p.kit); p.botPickT = .8 + Math.random()*1.6; }
+  game.banner = first ? "Pick your first card" : "Upgrade time";
+  game.sub = first ? "Everyone picks one card on their phone" : "Everyone who didn't win the round picks a card";
+  game.cardsDone = 0; game.cardRound = (game.cardRound || 0) + 1; setPhase("cards"); renderCardPanel(true);
+}
+function pickCard(p, idx){
+  if (game.phase !== "cards" || !p.offer || p.picked) return;
+  const id = p.offer[clamp(idx|0, 0, p.offer.length - 1)];
+  applyCard(p.kit, id); p.picked = id;
+  feed(p.name + " took " + CARD[id].n); Sfx.beep(false); renderCardPanel(true); renderScores();
+}
+function renderCardPanel(force){
+  const box = $("cardpanel");
+  if (game.phase !== "cards"){ box.hidden = true; return; }
+  const rows = game.pickers.map(c => game.players.get(c)).filter(Boolean);
+  const key = rows.map(p => p.cid + (p.picked || "")).join(",");
+  if (!force && box._k === key) return; box._k = key; box.hidden = false; box.replaceChildren();
+  for (const p of rows){
+    const d = document.createElement("div"); d.className = "pk";
+    const i = document.createElement("i"); i.style.background = lcd ? blobFill(p) : colorOf(p.col).c;
+    d.append(i, document.createTextNode(p.name));
+    if (p.picked){ const sp = document.createElement("span"); sp.textContent = "took " + CARD[p.picked].n; d.appendChild(sp); }
+    else if (p.local && p.offer){
+      const sp = document.createElement("span"); sp.style.display = "flex"; sp.style.gap = "6px"; sp.style.flexWrap = "wrap"; sp.style.justifyContent = "flex-end";
+      p.offer.forEach((id, k) => { const b = document.createElement("button"); b.textContent = (k+1) + ". " + CARD[id].n; b.title = CARD[id].d; b.onclick = () => pickCard(p, k); sp.appendChild(b); });
+      d.appendChild(sp);
+    } else { const sp = document.createElement("span"); sp.textContent = p.bot ? "thinking…" : "picking on their phone…"; d.appendChild(sp); }
+    box.appendChild(d);
+  }
+}
 function setPhase(ph){ game.phase = ph; game.phaseT = 0; }
 
 function botThink(p, dt){
@@ -3062,7 +3229,9 @@ function botThink(p, dt){
   if (edge > .55){ const w = (edge-.55)/.45*2.2; tx -= b.x/dc*w; ty -= b.y/dc*w; }
   p.wander += (Math.random()-.5)*dt*4; tx += Math.cos(p.wander)*.35; ty += Math.sin(p.wander)*.35;
   const l = Math.hypot(tx,ty) || 1; p.inp = {x:tx/l*.8, y:ty/l*.8};
-  if (tgt && best < 150 && edge < .8 && b.cd <= 0 && Math.random() < dt*2.5) p.wantDash = true;
+  if (tgt && best < 150 && edge < .8 && b.ch > 0 && Math.random() < dt*2.5) p.wantDash = true;
+  if (tgt && b.st.atk && b.acd <= 0){ const reach = b.st.atk === "bolt" ? 420 : b.st.atk === "quake" ? 130*b.st.area + 40 : 85*b.st.area + 40;
+    if (best < reach && Math.random() < dt*3){ p.inp = {x:(tgt.x-b.x)/best, y:(tgt.y-b.y)/best}; p.wantAtk = true; } }
 }
 
 function stepGame(dt){
@@ -3092,7 +3261,7 @@ function stepGame(dt){
       game.endWait = (game.endWait || 0) + dt;
       if (game.endWait > .9){
         game.endWait = 0;
-        const w = alive[0];
+        const w = alive[0]; game.roundWinner = w || null;
         if (w){ w.score++; game.banner = w.name + " wins!"; } else game.banner = "Nobody survived";
         game.sub = "";
         if (w && w.score >= WIN_SCORE){ game.champion = w; setPhase("matchover"); game.banner = w.name + " is the champ!"; game.sub = "Final score " + w.score; }
@@ -3102,7 +3271,23 @@ function stepGame(dt){
     }
     return;
   }
-  if (ph === "roundover"){ simulate(dt); if (game.phaseT > 3) startRound(); return; }
+  if (ph === "roundover"){ simulate(dt);
+    if (game.phaseT > 3){
+      if (game.mode === "brawl"){ const w = game.roundWinner; beginCards([...game.players.values()].filter(p => p !== w), false); }
+      else startRound(); }
+    return; }
+  if (ph === "cards"){
+    simulate(dt);
+    let open = 0;
+    for (const c of game.pickers){ const p = game.players.get(c); if (!p || p.picked) continue;
+      if (p.bot){ p.botPickT -= dt; if (p.botPickT <= 0){ pickCard(p, Math.floor(Math.random()*p.offer.length)); continue; } }
+      if (!p.connected && !p.bot){ pickCard(p, Math.floor(Math.random()*p.offer.length)); continue; }
+      if (game.phaseT > 25){ pickCard(p, Math.floor(Math.random()*p.offer.length)); continue; }
+      open++; }
+    if (game.phaseT > 25) game.sub = "Picking for anyone who's slow…";
+    if (!open){ game.cardsDone += dt; if (game.cardsDone > 1.4) startRound(); }
+    return;
+  }
   if (ph === "matchover"){ simulate(dt); if (game.phaseT > 7) toLobby(); return; }
 }
 
@@ -3110,27 +3295,33 @@ function simulate(dt){
   const ps = [...game.players.values()].filter(p => p.blob && p.blob.alive);
   const practice = game.phase === "lobby", control = game.phase === "play" || (practice && true);
   for (const p of ps){
-    const b = p.blob;
-    b.cd = Math.max(0, b.cd - dt); b.dashT = Math.max(0, b.dashT - dt); b.squish *= Math.exp(-10*dt);
+    const b = p.blob, st = b.st;
+    // dash charges refill one at a time (one charge in Sumo, so this is the old cooldown)
+    if (b.ch < st.charges){ b.cd -= dt; if (b.cd <= 0){ b.ch++; b.cd = b.ch < st.charges ? st.dashCd : 0; } } else b.cd = 0;
+    b.dashT = Math.max(0, b.dashT - dt); b.squish *= Math.exp(-10*dt);
+    b.acd = Math.max(0, b.acd - dt); b.stun = Math.max(0, b.stun - dt); b.slow = Math.max(0, b.slow - dt);
     if (b.falling){ b.falling += dt; b.vx *= .96; b.vy *= .96; b.x += b.vx*dt; b.y += b.vy*dt; if (b.falling > .75){ b.alive = false; if (practice) p.blob = spawnBlob(Math.random()*6.3, 40); else renderScores(); } continue; }
-    if (control){
-      if (p.bot) { if (practice) { p.inp = {x:0,y:0}; p.wantDash = false; } else botThink(p, dt); }
-      const ix = p.inp.x, iy = p.inp.y;
-      b.vx += ix*W.ACC*dt; b.vy += iy*W.ACC*dt;
+    if (control && b.stun <= 0){
+      if (p.bot) { if (practice) { p.inp = {x:0,y:0}; p.wantDash = false; p.wantAtk = false; } else botThink(p, dt); }
+      const ix = p.inp.x, iy = p.inp.y, acc = st.acc*(b.slow > 0 ? .4 : 1);
+      b.vx += ix*acc*dt; b.vy += iy*acc*dt;
       if (p.wantDash){
         p.wantDash = false;
-        if (b.cd <= 0){
+        if (b.ch > 0){
           let dx = ix, dy = iy, l = Math.hypot(dx,dy);
           if (l < .15){ dx = b.vx; dy = b.vy; l = Math.hypot(dx,dy); }
           if (l < 15){ dx = Math.cos(b.face); dy = Math.sin(b.face); l = 1; }
-          b.vx += dx/l*W.DASH_V; b.vy += dy/l*W.DASH_V; b.dashT = W.DASH_T; b.cd = W.DASH_CD; Sfx.dash();
+          b.vx += dx/l*st.dashV; b.vy += dy/l*st.dashV; b.dashT = W.DASH_T; b.ch--; if (b.cd <= 0) b.cd = st.dashCd; Sfx.dash();
         }
       }
-    } else { p.wantDash = false; }
-    const f = Math.exp(-W.DAMP*dt); b.vx *= f; b.vy *= f;
+      if (p.wantAtk){ p.wantAtk = false; if (st.atk && b.acd <= 0) doAttack(p, ix, iy); }
+    } else { p.wantDash = false; p.wantAtk = false; }
+    const f = Math.exp(-(W.DAMP + (b.slow > 0 ? 2.2 : 0))*dt); b.vx *= f; b.vy *= f;
     b.x += b.vx*dt; b.y += b.vy*dt;
     const sp = Math.hypot(b.vx, b.vy); if (sp > 30) b.face = Math.atan2(b.vy, b.vx);
     if (b.dashT > 0 || sp > 300){ b.trail.push({x:b.x, y:b.y, a:1}); if (b.trail.length > 10) b.trail.shift(); }
+    if (st.trail && b.dashT > 0){ b.drop -= dt; if (b.drop <= 0){ b.drop = .035;
+      game.zones.push({x:b.x, y:b.y, r:(st.trail === "slick" ? 34 : 24)*(1 + .15*(st.trailLv - 1)), t:2.6 + 1.2*st.trailLv, max:2.6 + 1.2*st.trailLv, kind:st.trail, own:p}); } }
   }
   for (const p of ps) for (const t of p.blob.trail) t.a -= dt*4;
   for (const p of ps) p.blob.trail = p.blob.trail.filter(t => t.a > 0);
@@ -3138,26 +3329,30 @@ function simulate(dt){
   for (let i=0;i<ps.length;i++) for (let j=i+1;j<ps.length;j++){
     const a = ps[i].blob, c = ps[j].blob; if (a.falling || c.falling) continue;
     let dx = c.x-a.x, dy = c.y-a.y, d = Math.hypot(dx,dy);
-    if (d >= W.BR*2 || d === 0) continue;
-    const nx = dx/d, ny = dy/d, ma = a.dashT>0 ? 2.4 : 1, mc = c.dashT>0 ? 2.4 : 1;
-    const over = W.BR*2 - d, ia = 1/ma, ic = 1/mc, sum = ia+ic;
+    if (d >= a.r + c.r || d === 0) continue;
+    const nx = dx/d, ny = dy/d, ma = a.st.mass*(a.dashT>0 ? 2.4*a.st.ram : 1), mc = c.st.mass*(c.dashT>0 ? 2.4*c.st.ram : 1);
+    const over = a.r + c.r - d, ia = 1/ma, ic = 1/mc, sum = ia+ic;
     a.x -= nx*over*ia/sum; a.y -= ny*over*ia/sum; c.x += nx*over*ic/sum; c.y += ny*over*ic/sum;
     const vn = (a.vx-c.vx)*nx + (a.vy-c.vy)*ny;
     if (vn <= 0) continue;
     const J = (1+W.E)*vn/sum + W.KNOCK/sum;
-    a.vx -= J*ia*nx; a.vy -= J*ia*ny; c.vx += J*ic*nx; c.vy += J*ic*ny;
+    const sa = shieldHit(a, J*ia), sc2 = shieldHit(c, J*ic);
+    a.vx -= J*ia*nx*sa; a.vy -= J*ia*ny*sa; c.vx += J*ic*nx*sc2; c.vy += J*ic*ny*sc2;
+    if (c.st.spiky){ const k = 230*c.st.spiky/a.st.mass*sa; a.vx -= nx*k; a.vy -= ny*k; }
+    if (a.st.spiky){ const k = 230*a.st.spiky/c.st.mass*sc2; c.vx += nx*k; c.vy += ny*k; }
     a.squish = c.squish = clamp(vn/500, .15, .6); a.sqA = c.sqA = Math.atan2(ny, nx);
     const now = game.t; a.lastHitBy = ps[j]; a.lastHitT = now; c.lastHitBy = ps[i]; c.lastHitT = now;
     if (vn > 220){ ps[i].hits++; ps[j].hits++; }
     game.shake = Math.max(game.shake, clamp(vn/90, 0, 9));
     Sfx.bump(vn);
-    const mx = a.x+nx*W.BR, my = a.y+ny*W.BR;
+    const mx = a.x+nx*a.r, my = a.y+ny*a.r;
     for (let k=0;k<Math.min(14, 4+vn/50);k++){ const ang = Math.random()*Math.PI*2, s = 60+Math.random()*vn*.6;
       game.parts.push({x:mx, y:my, vx:Math.cos(ang)*s, vy:Math.sin(ang)*s, life:.45, max:.45, col:"#ffffff"}); }
   }
+  stepBrawl(dt, ps);
   // ring-outs
   for (const p of ps){ const b = p.blob; if (b.falling || !b.alive) continue;
-    if (Math.hypot(b.x, b.y) > game.R + W.BR*.35){
+    if (Math.hypot(b.x, b.y) > game.R + b.r*.35){
       b.falling = .001; Sfx.fall();
       const k = b.lastHitBy && (game.t - b.lastHitT) < 3 ? b.lastHitBy : null;
       if (!practice) feed(k ? k.name + " bonked " + p.name + " off!" : p.name + " slipped off the ice");
@@ -3166,6 +3361,75 @@ function simulate(dt){
     } }
   for (const q of game.parts){ q.x += q.vx*dt; q.y += q.vy*dt; q.vx *= .92; q.vy *= .92; q.life -= dt; }
   game.parts = game.parts.filter(q => q.life > 0);
+}
+// a bubble soaks up the first big hit of the round
+function shieldHit(b, dv){
+  if (!b.shield || dv < 320) return 1;
+  b.shield--; Sfx.bump(500);
+  game.fx.push({kind:"pop", x:b.x, y:b.y, r:b.r+14, t:.35, max:.35});
+  return .15;
+}
+function shove(by, q, nx, ny, imp){
+  const b = q.blob; if (!b || !b.alive || b.falling) return;
+  const dv = imp/b.st.mass, k = shieldHit(b, dv);
+  b.vx += nx*dv*k; b.vy += ny*dv*k;
+  b.squish = .5; b.sqA = Math.atan2(ny, nx);
+  if (by){ b.lastHitBy = by; b.lastHitT = game.t; by.hits++; } q.hits++;
+  game.shake = Math.max(game.shake, clamp(dv/110, 0, 8)); Sfx.bump(dv);
+  for (let k2=0;k2<8;k2++){ const ang = Math.random()*Math.PI*2, s = 60+Math.random()*200;
+    game.parts.push({x:b.x - nx*b.r, y:b.y - ny*b.r, vx:Math.cos(ang)*s, vy:Math.sin(ang)*s, life:.4, max:.4, col:"#ffffff"}); }
+}
+function doAttack(p, ix, iy){
+  const b = p.blob, st = b.st;
+  let dx = ix, dy = iy, l = Math.hypot(dx, dy);
+  if (l < .3){ dx = Math.cos(b.face); dy = Math.sin(b.face); l = 1; }
+  dx /= l; dy /= l; b.face = Math.atan2(dy, dx); b.acd = st.atkCd;
+  const others = [...game.players.values()].filter(q => q !== p && q.blob && q.blob.alive && !q.blob.falling);
+  const rel = q => { const ox = q.blob.x - b.x, oy = q.blob.y - b.y, d = Math.hypot(ox, oy) || 1; return {ox:ox/d, oy:oy/d, d, dot:(ox*dx + oy*dy)/d}; };
+  if (st.atk === "bolt"){
+    game.shots.push({x:b.x + dx*(b.r + 10), y:b.y + dy*(b.r + 10), vx:dx*780 + b.vx*.3, vy:dy*780 + b.vy*.3, r:13*Math.sqrt(st.area), pow:st.pow, own:p, life:.55*st.area + .3});
+    Sfx.dash();
+  } else if (st.atk === "slash"){
+    const range = b.r + 90*st.area;
+    for (const q of others){ const r = rel(q); if (r.d < range + q.blob.r && r.dot > .3){ const mx = r.ox*.5 + dx*.5, my = r.oy*.5 + dy*.5, m = Math.hypot(mx, my) || 1; shove(p, q, mx/m, my/m, 640*st.pow); } }
+    game.fx.push({kind:"arc", x:b.x, y:b.y, a:b.face, r:range, t:.2, max:.2});
+    b.vx += dx*140; b.vy += dy*140; Sfx.dash();
+  } else if (st.atk === "bop"){
+    const range = b.r + 62*st.area; let best = null, bd = 1e9;
+    for (const q of others){ const r = rel(q); if (r.d < range + q.blob.r && r.dot > .45 && r.d < bd){ bd = r.d; best = q; } }
+    if (best){ const r = rel(best); shove(p, best, r.ox, r.oy, 300*st.pow); best.blob.stun = .85 + .2*(st.lv - 1);
+      game.fx.push({kind:"frost", x:best.blob.x, y:best.blob.y, r:best.blob.r + 10, t:.5, max:.5}); }
+    game.fx.push({kind:"jab", x:b.x + dx*(b.r + 20), y:b.y + dy*(b.r + 20), r:16*st.area, t:.15, max:.15}); Sfx.dash();
+  } else if (st.atk === "quake"){
+    const range = b.r + 130*st.area;
+    for (const q of others){ const r = rel(q); if (r.d < range + q.blob.r) shove(p, q, r.ox, r.oy, 560*st.pow*(1 - .5*Math.min(1, r.d/range))); }
+    game.fx.push({kind:"ring", x:b.x, y:b.y, r:range, t:.35, max:.35}); game.shake = Math.max(game.shake, 6); Sfx.bump(600);
+  }
+}
+function stepBrawl(dt, ps){
+  // snowballs
+  for (const s of game.shots){
+    s.x += s.vx*dt; s.y += s.vy*dt; s.life -= dt;
+    for (const q of ps){ if (q === s.own || !q.blob || q.blob.falling) continue;
+      const d = Math.hypot(q.blob.x - s.x, q.blob.y - s.y);
+      if (d < q.blob.r + s.r){ const v = Math.hypot(s.vx, s.vy) || 1; shove(s.own, q, s.vx/v, s.vy/v, 520*s.pow); s.life = 0;
+        game.fx.push({kind:"pop", x:s.x, y:s.y, r:s.r + 8, t:.25, max:.25}); break; } }
+  }
+  game.shots = game.shots.filter(s => s.life > 0);
+  // dash trails
+  for (const z of game.zones){
+    z.t -= dt;
+    for (const q of ps){ if (q === z.own || !q.blob || q.blob.falling || z.t <= 0) continue;
+      const b = q.blob, ox = b.x - z.x, oy = b.y - z.y, d = Math.hypot(ox, oy);
+      if (d > z.r + b.r*.6) continue;
+      if (z.kind === "slick") b.slow = .3;
+      else if (z.kind === "boom"){ const m = d || 1; shove(z.own, q, ox/m, oy/m, 380); z.t = 0;
+        game.fx.push({kind:"pop", x:z.x, y:z.y, r:z.r + 10, t:.25, max:.25}); }
+    }
+  }
+  game.zones = game.zones.filter(z => z.t > 0);
+  for (const f of game.fx) f.t -= dt;
+  game.fx = game.fx.filter(f => f.t > 0);
 }
 
 /* ---- rendering ---- */
@@ -3212,13 +3476,28 @@ function draw(){
   for (const p of game.players.values()){ const b = p.blob; if (!b || !b.alive) continue;
     for (const t of b.trail){ g.globalAlpha = t.a*(lcd ? .5 : .35); g.fillStyle = lcd ? LCD[1] : colorOf(p.col).c; g.beginPath(); g.arc(t.x, t.y, W.BR*.85, 0, Math.PI*2); g.fill(); }
     g.globalAlpha = 1; }
+  // dash-trail zones, snowballs and attack effects
+  for (const z of game.zones){ const a = clamp(z.t/z.max, 0, 1);
+    if (z.kind === "slick"){ g.globalAlpha = .45*a + .1; g.fillStyle = lcd ? LCD[1] : "#7be36b"; g.beginPath(); g.arc(z.x, z.y, z.r, 0, Math.PI*2); g.fill(); }
+    else { g.globalAlpha = .6 + .4*Math.sin(game.t*20 + z.x); g.fillStyle = lcd ? LCD[3] : "#ffd23f"; for (let k=0;k<3;k++){ const an = game.t*6 + k*2.09 + z.y; g.beginPath(); g.arc(z.x + Math.cos(an)*z.r*.5, z.y + Math.sin(an)*z.r*.5, 5, 0, Math.PI*2); g.fill(); } }
+  }
+  g.globalAlpha = 1;
+  for (const sh of game.shots){ g.fillStyle = lcd ? LCD[3] : "#ffffff"; g.beginPath(); g.arc(sh.x, sh.y, sh.r, 0, Math.PI*2); g.fill();
+    if (!lcd){ g.strokeStyle = "rgba(88,180,255,.8)"; g.lineWidth = 3; g.stroke(); } }
+  for (const f of game.fx){ const a = clamp(f.t/f.max, 0, 1); g.globalAlpha = a; g.lineWidth = lcd ? 6 : 5;
+    if (f.kind === "arc"){ g.strokeStyle = lcd ? LCD[3] : "#ffffff"; g.beginPath(); g.arc(f.x, f.y, f.r*(1.1 - .3*a), f.a - 1.25, f.a + 1.25); g.stroke(); }
+    else if (f.kind === "ring"){ g.strokeStyle = lcd ? LCD[3] : "#ffb347"; g.beginPath(); g.arc(f.x, f.y, f.r*(1 - .7*a), 0, Math.PI*2); g.stroke(); }
+    else if (f.kind === "frost" || f.kind === "jab"){ g.strokeStyle = lcd ? LCD[3] : "#9fe7ff"; g.beginPath(); for (let k=0;k<6;k++){ const an = k*Math.PI/3; g.moveTo(f.x, f.y); g.lineTo(f.x + Math.cos(an)*f.r, f.y + Math.sin(an)*f.r); } g.stroke(); }
+    else { g.strokeStyle = lcd ? LCD[3] : "#ffffff"; g.beginPath(); g.arc(f.x, f.y, f.r*(1.4 - .4*a), 0, Math.PI*2); g.stroke(); }
+  }
+  g.globalAlpha = 1;
   // blobs
   const blobs = [...game.players.values()].filter(p => p.blob && p.blob.alive).sort((a,b)=>a.blob.y-b.blob.y);
   for (const p of blobs){ const b = p.blob, col = blobFill(p);
     const fall = b.falling ? clamp(1 - b.falling/.75, 0, 1) : 1;
     g.save(); g.translate(b.x, b.y);
     if (!b.falling){ g.fillStyle = lcd ? LCD[1] : "rgba(0,40,60,.18)"; g.beginPath(); g.ellipse(4, W.BR*.75, W.BR*.95, W.BR*.38, 0, 0, Math.PI*2); g.fill(); }
-    g.scale(fall, fall); g.globalAlpha = .3 + .7*fall;
+    g.scale(fall*b.r/W.BR, fall*b.r/W.BR); g.globalAlpha = .3 + .7*fall;
     g.rotate(b.sqA); g.scale(1 - b.squish*.35, 1 + b.squish*.25); g.rotate(-b.sqA);
     if (lcd){
       g.fillStyle = LCD[3]; g.beginPath(); g.arc(0,0,W.BR+5,0,Math.PI*2); g.fill();
@@ -3232,6 +3511,8 @@ function draw(){
       g.fillStyle = "rgba(255,255,255,.55)"; g.beginPath(); g.ellipse(-9, -11, 7, 4.5, -.6, 0, Math.PI*2); g.fill();
     }
     if (b.dashT > 0){ g.strokeStyle = lcd ? LCD[3] : "rgba(255,255,255,.9)"; g.lineWidth = lcd ? 5 : 3; g.beginPath(); g.arc(0,0,W.BR+(lcd?11:5),0,Math.PI*2); g.stroke(); }
+    if (b.shield && !b.falling){ g.strokeStyle = lcd ? LCD[2] : "rgba(160,230,255,.85)"; g.lineWidth = 3; g.beginPath(); g.arc(0,0,W.BR+9,0,Math.PI*2); g.stroke(); }
+    if (b.stun > 0){ g.fillStyle = lcd ? "rgba(31,58,28,.35)" : "rgba(170,230,255,.55)"; g.beginPath(); g.arc(0,0,W.BR+2,0,Math.PI*2); g.fill(); }
     // eyes look where it's heading
     const ex = Math.cos(b.face)*6, ey = Math.sin(b.face)*5;
     for (const s of [-1,1]){ const px = ex + s*8*Math.cos(b.face+Math.PI/2)*.9, py = ey - 4 + s*8*Math.sin(b.face+Math.PI/2)*.5;
@@ -3241,10 +3522,17 @@ function draw(){
     if (!b.falling){
       const fs = lcd ? Math.round(10/sc) : 17;
       g.font = (lcd ? `${fs}px Silkscreen, monospace` : "600 17px Rubik, system-ui, sans-serif"); g.textAlign = "center";
-      const ny = b.y - W.BR - (lcd ? 16 : 12);
+      const ny = b.y - b.r - (lcd ? 16 : 12);
       if (!lcd){ g.lineWidth = 5; g.strokeStyle = "rgba(13,38,48,.85)"; g.strokeText(p.name, b.x, ny); }
       g.fillStyle = lcd ? LCD[3] : "#ffffff"; g.fillText(p.name, b.x, ny);
-      if (b.cd > 0){ g.strokeStyle = lcd ? LCD[2] : "rgba(13,38,48,.35)"; g.lineWidth = 4; g.beginPath(); g.arc(b.x, b.y, W.BR+(lcd?14:9), -Math.PI/2, -Math.PI/2 + Math.PI*2*(1-b.cd/W.DASH_CD)); g.stroke(); } }
+      const df = dashFrac(b);
+      if (df > 0){ g.strokeStyle = lcd ? LCD[2] : "rgba(13,38,48,.35)"; g.lineWidth = 4; g.beginPath(); g.arc(b.x, b.y, b.r+(lcd?14:9), -Math.PI/2, -Math.PI/2 + Math.PI*2*(1-df)); g.stroke(); }
+      // loadout under the name while the round counts in
+      if (game.mode === "brawl" && (game.phase === "countdown" || (game.phase === "play" && game.phaseT < 1.5))){
+        const kt = kitText(p.kit);
+        if (kt){ g.font = lcd ? `${Math.round(8/sc)}px Silkscreen, monospace` : "500 13px Rubik, system-ui, sans-serif"; const ky = b.y + b.r + (lcd ? 22 : 24);
+          if (!lcd){ g.lineWidth = 4; g.strokeStyle = "rgba(13,38,48,.85)"; g.strokeText(kt, b.x, ky); }
+          g.fillStyle = lcd ? LCD[3] : "#ffe9a8"; g.fillText(kt, b.x, ky); } } }
   }
   g.globalAlpha = 1;
   for (const q of game.parts){ g.globalAlpha = clamp(q.life/q.max, 0, 1); g.fillStyle = lcd ? LCD[3] : q.col; g.beginPath(); g.arc(q.x, q.y, lcd ? 6 : 4, 0, Math.PI*2); g.fill(); }
@@ -3270,24 +3558,32 @@ function pushStates(){
   const per = {};
   for (const p of game.players.values()){ if (p.bot) continue;
     const b = p.blob;
-    per[p.cid] = {c:p.col, n:p.name, s:p.score, a: b ? (b.alive && !b.falling ? 1 : 0) : -1, cd: b ? Math.round(b.cd/W.DASH_CD*100)/100 : 0, h:p.hits}; }
+    const o = {c:p.col, n:p.name, s:p.score, a: b ? (b.alive && !b.falling ? 1 : 0) : -1, cd: b ? Math.round(dashFrac(b)*100)/100 : 0, h:p.hits};
+    if (game.mode === "brawl"){
+      o.ctl = ctlFor(p); o.acd = b ? Math.round(atkFrac(b)*100)/100 : 0;
+      const k = p.kit; o.k = {a:k.atk, al:k.atkLv, p:k.pas, pl:k.pasLv, t:k.trail, tl:k.trailLv, u:k.up};
+      if (game.phase === "cards"){ o.pick = game.pickers.includes(p.cid) ? 1 : 0; if (p.offer) o.o = p.offer; if (p.picked) o.pd = p.picked; o.pr = game.cardRound; }
+    }
+    per[p.cid] = o; }
   const humans = [...game.players.values()];
-  net.setState({gt:GAME.title, gs:GAME.sub, ctl:GAME.controls, ph:game.phase, pc:humans.length, w:game.phase==="roundover"||game.phase==="matchover" ? game.banner : "", ch: game.champion ? game.champion.cid : ""}, per);
+  net.setState({gt:GAME.title, gs:GAME.sub, ctl:GAME.controls, ph:game.phase, md:game.mode, pc:humans.length, w:game.phase==="roundover"||game.phase==="matchover" ? game.banner : "", ch: game.champion ? game.champion.cid : ""}, per);
 }
 
 const LOCAL = "local";
-let localCtl = null, keys = new Set(), keyDash = 0;
+let localCtl = null, keys = new Set(), keyDash = 0, keyAtk = 0;
 const localInp = newInput();
 function localInput(){
   let x = localInp.x, y = localInp.y;
   if (keys.size){ x = (keys.has("right")?1:0) - (keys.has("left")?1:0); y = (keys.has("down")?1:0) - (keys.has("up")?1:0); }
-  hostHandlers.input(LOCAL, {x, y, b:[localInp.b[0] + keyDash, localInp.b[1]], sw:localInp.sw, go:0});
+  hostHandlers.input(LOCAL, {x, y, b:[localInp.b[0] + keyDash, localInp.b[1] + keyAtk], sw:localInp.sw, go:0, pk:[0,0]});
 }
 const KEYMAP = {ArrowLeft:"left", KeyA:"left", ArrowRight:"right", KeyD:"right", ArrowUp:"up", KeyW:"up", ArrowDown:"down", KeyS:"down"};
 window.addEventListener("keydown", e => {
   if (!game.players.has(LOCAL) || e.target.tagName === "INPUT") return;
   if (KEYMAP[e.code]){ keys.add(KEYMAP[e.code]); localInput(); e.preventDefault(); }
   if (e.code === "Space" && !e.repeat){ keyDash++; localInput(); e.preventDefault(); }
+  if ((e.code === "KeyF" || e.code === "Enter") && !e.repeat){ keyAtk++; localInput(); e.preventDefault(); }
+  if (/^Digit[123]$/.test(e.code) && game.phase === "cards"){ pickCard(game.players.get(LOCAL), +e.code.slice(5) - 1); e.preventDefault(); }
 });
 window.addEventListener("keyup", e => { if (KEYMAP[e.code]){ keys.delete(KEYMAP[e.code]); localInput(); } });
 function setupLocalPlayer(){
@@ -3296,6 +3592,7 @@ function setupLocalPlayer(){
   const col = parseInt(store.get("bb-col") || "", 10);
   const p = addPlayer(LOCAL, name, Number.isInteger(col) ? col : 0, false);
   p.local = true;
+  localScheme = JSON.stringify(GAME.controls);
   localCtl = buildControls($("lp-zone"), $("lp-dashzone"), GAME.controls, localInp, localInput);
   $("lobby").classList.add("mini");
   lcd = true;
@@ -3307,10 +3604,13 @@ function setupLocalPlayer(){
     menuArmed = Date.now(); feed("Press MENU again for the lobby");
   };
 }
+let localScheme = "";
 function syncLocalPad(){
   const p = game.players.get(LOCAL); if (!p) return;
-  const b = p.blob, cd = b ? b.cd/W.DASH_CD : 0;
-  if (localCtl) localCtl.setCooldown(0, cd);
+  const b = p.blob, cd = b ? dashFrac(b) : 0;
+  const ctl = ctlFor(p), key = JSON.stringify(ctl);
+  if (key !== localScheme){ localScheme = key; localCtl = buildControls($("lp-zone"), $("lp-dashzone"), ctl, localInp, localInput); }
+  if (localCtl){ localCtl.setCooldown(0, cd); localCtl.setCooldown(1, b ? atkFrac(b) : 0); }
   if (p.hits > (p._buzz||0)) buzz(40); p._buzz = p.hits;
 }
 async function startHost(solo){
@@ -3353,6 +3653,10 @@ $("btn-rmbot").onclick = () => { const b = [...game.players.values()].reverse().
 const goFull = () => { const el = document.documentElement; (el.requestFullscreen ? el.requestFullscreen() : Promise.reject()).catch(() => {}); };
 $("btn-fs").onclick = goFull; $("btn-fs2").onclick = goFull;
 $("btn-tolobby").onclick = () => toLobby();
+$("btn-gmode").onclick = $("mini-gmode").onclick = () => {
+  if (game.phase !== "lobby") return;
+  game.mode = game.mode === "brawl" ? "sumo" : "brawl"; store.set("bb-gmode", game.mode); renderLobby();
+};
 $("btn-sound").onclick = e => { Sfx.on = !Sfx.on; Sfx.unlock(); e.target.textContent = Sfx.on ? "Sound on" : "Sound off"; e.target.setAttribute("aria-pressed", String(Sfx.on)); };
 
 /* ==================== CONTROLLER SHELL ==================== */
@@ -3366,7 +3670,7 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 const buzz = ms => { if (!prefs.vibe) return; try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} };
 const prefs = {vibe: store.get("bb-vibe") !== "0", tilt:false};
 let tiltOut = null, tiltBase = null;
-function newInput(){ return {x:0, y:0, b:[0,0], sw:[0,0,0], go:0}; }
+function newInput(){ return {x:0, y:0, b:[0,0], sw:[0,0,0], go:0, pk:[0,0]}; }
 function buildControls(moveEl, btnEl, scheme, out, emit){
   moveEl.replaceChildren(); btnEl.replaceChildren();
   moveEl.onpointerdown = moveEl.onpointermove = moveEl.onpointerup = moveEl.onpointercancel = null;
@@ -3513,14 +3817,15 @@ function overlay(title, text, btn, fn){
 function onPadState(g, me){
   padState.g = g; padState.me = me;
   if (!$("padover").hidden && $("padover-title").textContent === "Disconnected") overlay(null);
-  if (g.ctl){ const k = JSON.stringify(g.ctl); if (k !== padScheme){ padScheme = k; padCtl = buildControls($("movezone"), $("btnzone"), g.ctl, padState.inp, padEmit); } }
+  const ctl = (me && me.ctl) || g.ctl;
+  if (ctl){ const k = JSON.stringify(ctl); if (k !== padScheme){ padScheme = k; padCtl = buildControls($("movezone"), $("btnzone"), ctl, padState.inp, padEmit); } }
   if (g.gt){ $("carttitle").textContent = g.gt; $("cartmenu").dataset.title = g.gt; } if (g.gs){ $("cartsub").textContent = g.gs; }
   if (me){
     $("padscore").textContent = me.s; $("padminiscore").textContent = me.s;
     if (me.c !== padState.col || me.n !== padState.name) setPadIdentity(me.n || padState.name, me.c);
     if (me.h > padState.lastHits) buzz(40);
     padState.lastHits = me.h;
-    if (padCtl) padCtl.setCooldown(0, me.cd || 0);
+    if (padCtl){ padCtl.setCooldown(0, me.cd || 0); padCtl.setCooldown(1, me.acd || 0); }
   }
   const ph = g.ph; let st = "";
   $("padstart").hidden = !(ph === "lobby" && (g.pc||0) >= 2);
@@ -3528,8 +3833,33 @@ function onPadState(g, me){
   else if (ph === "countdown") st = "Get ready…";
   else if (ph === "play") st = me && me.a === 1 ? "Bump them off the ice!" : me && me.a === -1 ? "Joining next round" : "You're out. Next round soon";
   else if (ph === "roundover") st = g.w || "Round over";
+  else if (ph === "cards") st = me && me.pick ? (me.pd ? "Took " + CARD[me.pd].n + ". Waiting for the others…" : "Pick an upgrade") : "You won the round. Others are picking…";
   else if (ph === "matchover") st = g.ch === pad.cid ? "You're the champ!" : (g.w || "Match over");
+  renderPadCards(ph, me);
   $("padstatustext").textContent = st;
+}
+function renderPadCards(ph, me){
+  const box = $("padcards");
+  const show = ph === "cards" && me && me.pick && me.o && !me.pd;
+  if (!show){ box.hidden = true; box._k = ""; return; }
+  const key = me.pr + ":" + me.o.join(",");
+  if (box._k === key || padState.pickedRound === key) return; box._k = key;
+  const kit = me.k ? {atk:me.k.a, atkLv:me.k.al, pas:me.k.p, pasLv:me.k.pl, trail:me.k.t, trailLv:me.k.tl, up:me.k.u || {}} : newKit();
+  box.replaceChildren(el("h2", null, "Pick an upgrade"));
+  const row = el("div", "row");
+  me.o.forEach((id, i) => {
+    const c = CARD[id]; if (!c) return;
+    const b = el("button", "card"); b.type = "button"; b.style.setProperty("--kc", KIND_COL[c.k] || "#7a6f5a");
+    b.append(el("small", null, c.k), el("b", null, c.n), el("span", null, c.d));
+    const note = cardNote(c, kit); if (note) b.append(el("em", null, note));
+    b.onclick = () => { if (padState.pickedRound === key) return; padState.pickedRound = key;
+      padState.inp.pk = [padState.inp.pk[0] + 1, i]; padEmit(); buzz(20);
+      box.replaceChildren(el("h2", null, c.n), el("p", null, "Got it. Waiting for everyone else to pick…")); };
+    row.appendChild(b);
+  });
+  const have = kitText(kit);
+  box.append(row, el("p", null, have ? "You have: " + have : "Tap a card. The winner of each round doesn't pick."));
+  box.hidden = false;
 }
 const padGo = () => { padState.inp.go++; padEmit(); };
 $("padstart").addEventListener("click", padGo);
