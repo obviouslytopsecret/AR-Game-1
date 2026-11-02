@@ -83,6 +83,7 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
 .dpad{position:absolute;left:50%;top:46%;width:150px;height:150px;margin:-75px 0 0 -75px;pointer-events:none}
 .dpad::before,.dpad::after{content:"";position:absolute;background:#2d2f36;border-radius:8px;box-shadow:0 4px 0 #17181c}
 .dpad::before{left:50px;top:0;width:50px;height:150px}.dpad::after{left:0;top:50px;width:150px;height:50px}
+.dpad.float{border-radius:50%;background:rgba(0,0,0,.07);box-shadow:inset 0 0 0 3px rgba(0,0,0,.16);opacity:.6;transition:opacity .15s}.dpad.float.live{opacity:1}.dpad.float::before,.dpad.float::after{display:none}
 .dpad .stickknob{z-index:1;width:46px;height:46px;margin:-23px 0 0 -23px;background:#3d4049;box-shadow:inset 0 0 0 3px #4c505b,0 0 0 4px rgba(0,0,0,.15)}
 #host.solo .dashbtn{width:min(26vw,24vh,128px);background:conic-gradient(var(--btn) var(--cd,360deg),#5a3a46 0);box-shadow:0 7px 0 var(--btn-2);font-size:clamp(18px,4.6vw,28px)}
 #host.solo .dashbtn:active{box-shadow:0 3px 0 var(--btn-2)}
@@ -2698,7 +2699,7 @@ var qrcode = function() {
 /* ==================== shared config ==================== */
 const ARTIFACT_URL = "";
 const PEER_PREFIX = "bumperblobs-v1-";
-const WIN_SCORE = 5, PRESET_COLORS = 8; // no player cap
+const WIN_SCORE = 3, PRESET_COLORS = 8; // no player cap
 const COLORS = [
   {n:"Bubblegum",c:"#ff6b8b"},{n:"Mango",c:"#ffc94a"},{n:"Mint",c:"#5ee0a0"},{n:"Sky",c:"#58b4ff"},
   {n:"Grape",c:"#b98cff"},{n:"Tangerine",c:"#ff9147"},{n:"Lime",c:"#c4ef4f"},{n:"Cotton",c:"#f6f0ff"}];
@@ -3371,11 +3372,16 @@ function buildControls(moveEl, btnEl, scheme, out, emit){
   moveEl.onpointerdown = moveEl.onpointermove = moveEl.onpointerup = moveEl.onpointercancel = null;
   const kind = scheme.move || "stick";
   if (kind === "stick" || kind === "dpad"){
-    const dp = el("div", "dpad"), knob = el("div", "stickknob"); dp.appendChild(knob); moveEl.appendChild(dp);
-    moveEl.appendChild(el("div", "tag", kind === "dpad" ? "D-PAD" : "STEER"));
-    let pid = null, ox = 0, oy = 0; const MAXR = 52;
+    const dp = el("div", kind === "stick" ? "dpad float" : "dpad"), knob = el("div", "stickknob"); dp.appendChild(knob); moveEl.appendChild(dp);
+    moveEl.appendChild(el("div", "tag", kind === "dpad" ? "D-PAD" : "STEER ANYWHERE"));
+    let pid = null, ox = 0, oy = 0; const MAXR = 52, follow = kind === "stick";
+    // floating stick: it appears under the thumb, and the base trails the thumb past the edge,
+    // so reversing direction takes effect at once without coming back to center
+    const place = () => { const r = moveEl.getBoundingClientRect(); dp.style.left = (ox - r.left) + "px"; dp.style.top = (oy - r.top) + "px"; };
     const at = e => {
-      let dx = e.clientX - ox, dy = e.clientY - oy; const l = Math.hypot(dx, dy); if (l > MAXR){ dx *= MAXR/l; dy *= MAXR/l; }
+      let dx = e.clientX - ox, dy = e.clientY - oy; const l = Math.hypot(dx, dy);
+      if (l > MAXR){ dx *= MAXR/l; dy *= MAXR/l; if (follow){ ox = e.clientX - dx; oy = e.clientY - dy; place(); } }
+      if (follow && l < 6){ dx = 0; dy = 0; }
       let x = dx/MAXR, y = dy/MAXR;
       if (kind === "dpad"){ if (Math.hypot(x,y) < .35){ x = 0; y = 0; } else { const a = Math.round(Math.atan2(y,x)/(Math.PI/4))*(Math.PI/4); x = Math.round(Math.cos(a)*1000)/1000; y = Math.round(Math.sin(a)*1000)/1000; } }
       knob.style.transform = `translate(${x*MAXR}px,${y*MAXR}px)`;
@@ -3385,12 +3391,13 @@ function buildControls(moveEl, btnEl, scheme, out, emit){
       if (pid !== null) return; pid = e.pointerId; try{ moveEl.setPointerCapture(pid); }catch(err){}
       // thumb lands on the cross: measure from its center; lands elsewhere: measure from where it landed
       const b = dp.getBoundingClientRect();
-      if (e.clientX > b.left && e.clientX < b.right && e.clientY > b.top && e.clientY < b.bottom){ ox = b.left + b.width/2; oy = b.top + b.height/2; }
+      if (follow){ ox = e.clientX; oy = e.clientY; place(); dp.classList.add("live"); }
+      else if (e.clientX > b.left && e.clientX < b.right && e.clientY > b.top && e.clientY < b.bottom){ ox = b.left + b.width/2; oy = b.top + b.height/2; }
       else { ox = e.clientX; oy = e.clientY; }
       at(e); e.preventDefault();
     };
     moveEl.onpointermove = e => { if (e.pointerId === pid) at(e); };
-    moveEl.onpointerup = moveEl.onpointercancel = e => { if (e.pointerId !== pid) return; pid = null; knob.style.transform = ""; if (!prefs.tilt){ out.x = 0; out.y = 0; emit(); } };
+    moveEl.onpointerup = moveEl.onpointercancel = e => { if (e.pointerId !== pid) return; pid = null; knob.style.transform = ""; if (follow){ dp.style.left = dp.style.top = ""; dp.classList.remove("live"); } if (!prefs.tilt){ out.x = 0; out.y = 0; emit(); } };
   } else if (kind === "swipe"){
     const pad = el("div", "swipepad"); const arrow = el("div", "swipearrow", "➜"); pad.appendChild(arrow); moveEl.appendChild(pad);
     moveEl.appendChild(el("div", "tag", "SWIPE"));
