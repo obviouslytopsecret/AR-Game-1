@@ -49,6 +49,8 @@ input{font-family:var(--display);font-size:22px;text-transform:uppercase;letter-
 #net{font-size:12px;font-weight:600;color:var(--muted);text-shadow:0 1px 3px #000}
 #net.ok{color:var(--green)}#net.bad{color:#ff6b6b}
 #bStart{position:absolute;left:50%;transform:translateX(-50%);bottom:max(120px,calc(env(safe-area-inset-bottom) + 112px));pointer-events:auto;font-size:22px;padding:16px 28px;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+#dbg{font:11px/1.3 ui-monospace,Menlo,monospace;color:rgba(233,243,236,.75);text-shadow:0 1px 2px #000}
+#bMode.warn{background:var(--orange);color:var(--ink)}
 #hint{position:absolute;left:0;right:0;bottom:max(70px,calc(env(safe-area-inset-bottom) + 64px));text-align:center;font-size:14px;color:var(--line);text-shadow:0 1px 3px #000;opacity:.85}
 </style>
 </head>
@@ -78,17 +80,18 @@ input{font-family:var(--display);font-size:22px;text-transform:uppercase;letter-
     <p class="status" id="lStatus"></p>
     <div class="col">
       <button id="bAR" class="hot">Start AR</button>
+      <button id="bSimpleL" class="alt" hidden>Simple mode (no AR tracking)</button>
       <button id="bBack" class="alt">Back</button>
     </div>
     <p class="small" id="modeHint"></p>
   </section>
 
   <div id="hud" hidden>
-    <div class="top"><div id="score"><span class="me">0</span> · <span class="them">0</span></div><div id="msg"></div><div id="net"></div></div>
+    <div class="top"><div id="score"><span class="me">0</span> · <span class="them">0</span></div><div id="msg"></div><div id="net"></div><div id="dbg"></div></div>
     <div id="hint"></div>
     <button id="bStart" class="hot" hidden>Start game</button>
     <div id="over" hidden><div id="overTxt"></div><button id="bRematch" class="hot">Rematch</button><p class="small" id="overSub"></p></div>
-    <div class="bot"><button id="bExit">Exit</button><button id="bPlace">Re-center</button></div>
+    <div class="bot"><button id="bExit">Exit</button><button id="bMode" hidden>Simple mode</button><button id="bPlace">Re-center</button></div>
   </div>
 </div>
 
@@ -108,7 +111,8 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let role=null;            // 'host' | 'guest' | 'solo'
 let peer=null,conn=null,connected=false;
 let mode=null;            // 'xr' | 'cam'
-let placed=false,started=false,guestReady=false,lastRx=0,roomCode='',xrT0=0,lastHit=0;
+let placed=false,started=false,guestReady=false,lastRx=0,roomCode='',xrT0=0,lastHit=0,tx=0,rx=0,xrTrack='off',badSince=0,useGyro=true,toCam=false;
+const viewPos=new THREE.Vector3(),viewQ=new THREE.Quaternion();
 let myX=0;                // my paddle x in my own frame (+x = my right)
 const S={bx:0,bz:0,vx:0,vz:0,spd:0,hx:0,gx:0,sh:0,sg:0,ph:'wait',hits:0,dir:1,serveAt:0,win:null};
 let rxAt=0,cpuErr=0;
@@ -206,6 +210,7 @@ function physics(dt){
 
 // ---- sounds/HUD from state changes (works the same for guest) ----
 let lastHits=0,lastScore='0-0',lastPh='';
+const now=()=>performance.now();
 function hud(){
   const meS=role==='guest'?S.sg:S.sh,themS=role==='guest'?S.sh:S.sg;
   $('score').innerHTML=`<span class="me">${meS}</span> · <span class="them">${themS}</span>`;
@@ -219,7 +224,11 @@ function hud(){
   else if(S.ph==='serve'){const meSv=(role==='guest'?-S.dir:S.dir)>0;m=meSv?'Ball coming to you':'Ball going to them';}
   if(role!=='solo'&&!connected&&started&&role==='guest')m='Connection lost';
   if(mode==='xr'&&(!placed||wantPlace)&&performance.now()-Math.max(xrT0,lastHit)>3000&&!reticle.visible)m='Can’t find the table surface yet. Tap anywhere to drop the court in front of you.';
+  const bad=mode==='xr'&&badSince&&now()-badSince>2000;
+  if(bad)m=xrTrack==='lost'?'AR tracking lost. Move the phone slowly, or tap Simple mode.':'AR tracking isn’t working well on this phone. Tap Simple mode to play without it.';
+  if(mode==='xr')$('bMode').classList.toggle('warn',!!bad);
   $('msg').textContent=m;
+  $('dbg').textContent=role==='solo'?(mode==='xr'?'ar:'+xrTrack:''):`me:${peer&&peer.id?peer.id.replace(PREFIX,'host-').slice(-10):'…'} room:${roomCode||'-'} conn:${connected?'yes':'no'} tx:${tx} rx:${rx}`+(mode==='xr'?` ar:${xrTrack}`:mode==='cam'?` cam:${useGyro&&ori?'gyro':'fixed'}`:'');
   const alive=connected&&performance.now()-lastRx<3000;
   const net=$('net');
   if(role==='solo'){net.textContent='';}
@@ -258,12 +267,13 @@ function joinGame(code){
 }
 function wire(){
   conn.on('open',()=>{connected=true;lastRx=performance.now();lstat(role==='host'?'Friend joined. Tap Start AR.':'Connected. Tap Start AR.');});
-  conn.on('data',d=>{if(!d||typeof d!=='object')return;lastRx=performance.now();
+  conn.on('data',d=>{if(!d||typeof d!=='object')return;lastRx=performance.now();rx++;
     if(role==='host'&&d.t==='p'){S.gx=clamp(-Number(d.x)||0,-W/2+PW/2,W/2-PW/2);guestReady=!!d.r;}
     if(role==='guest'&&d.t==='s'){for(const k of['bx','bz','vx','vz','hx','sh','sg','ph','hits','dir','win'])if(k in d)S[k]=d[k];rxAt=performance.now();}});
   conn.on('close',()=>{connected=false;lstat('Your friend disconnected.');if(role==='host'&&S.ph!=='wait'){S.ph='wait';started&&($('msg').textContent='Your friend disconnected');}});
 }
 setInterval(()=>{if(!conn||!connected)return;try{
+  tx++;
   if(role==='host')conn.send({t:'s',bx:+S.bx.toFixed(4),bz:+S.bz.toFixed(4),vx:+S.vx.toFixed(4),vz:+S.vz.toFixed(4),hx:+myX.toFixed(4),sh:S.sh,sg:S.sg,ph:S.ph,hits:S.hits,dir:S.dir,win:S.win});
   else conn.send({t:'p',x:+myX.toFixed(4),r:placed});}catch(e){}},33);
 
@@ -278,7 +288,8 @@ async function startXR(){
   xrT0=performance.now();
   xrSession.addEventListener('select',()=>{if(placed&&court.visible&&!wantPlace)return;if(reticle.visible)placeCourtAtReticle();else placeFallback();});
   try{const vs=await xrSession.requestReferenceSpace('viewer');hitSrc=await xrSession.requestHitTestSource({space:vs});}catch(e){hitSrc=null;}
-  xrSession.addEventListener('end',()=>{location.href=location.pathname;});
+  xrSession.addEventListener('end',()=>{if(!toCam){location.href=location.pathname;return;}toCam=false;xrSession=null;hitSrc=null;reticle.visible=false;renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.fov=63;camera.updateProjectionMatrix();startCam();});
+  $('bMode').hidden=false;$('bMode').textContent='Simple mode';
   for(const b of ui.querySelectorAll('button'))b.addEventListener('beforexrselect',e=>e.preventDefault());
   $('bStart').addEventListener('beforexrselect',e=>e.preventDefault());
   $('bPlace').textContent='Move court';
@@ -286,7 +297,7 @@ async function startXR(){
 }
 let wantPlace=false;
 function placeFallback(){ // no surface found: drop the court ~35cm below the phone, in front of you
-  const cam=renderer.xr.getCamera(),c=new THREE.Vector3(),q=new THREE.Quaternion();cam.getWorldPosition(c);cam.getWorldQuaternion(q);
+  const c=viewPos.clone(),q=viewQ.clone();
   const f=new THREE.Vector3(0,0,-1).applyQuaternion(q),y=c.y-.35;let p;
   if(f.y<-.25){const k=(y-c.y)/f.y;p=c.clone().add(f.multiplyScalar(Math.min(k,1.2)));p.y=y;}
   else{const h=new THREE.Vector3(f.x,0,f.z);if(h.lengthSq()<1e-4)h.set(0,0,-1);h.normalize();p=c.clone().add(h.multiplyScalar(.45));p.y=y;}
@@ -295,7 +306,7 @@ function placeFallback(){ // no surface found: drop the court ~35cm below the ph
 }
 function placeCourtAtReticle(){
   const p=new THREE.Vector3().setFromMatrixPosition(reticle.matrix);
-  const c=new THREE.Vector3();renderer.xr.getCamera().getWorldPosition(c);
+  const c=viewPos.clone();
   court.position.copy(p);court.rotation.set(0,Math.atan2(c.x-p.x,c.z-p.z),0);
   court.visible=true;placed=true;wantPlace=false;reticle.visible=false;beep(600,.08,'sine');
 }
@@ -307,7 +318,7 @@ function startCam(){
   let mp=Promise.resolve('granted');
   try{if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function')mp=DeviceOrientationEvent.requestPermission().catch(()=>'denied');}catch(e){}
   let cp=(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)?navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}}):Promise.reject(new Error('no camera'));
-  mode='cam';enterGame();
+  mode='cam';enterGame();xrTrack='off';$('bPlace').textContent='Re-center';$('bMode').hidden=false;$('bMode').textContent=useGyro?'Lock court':'Follow table';$('bMode').classList.remove('warn');
   const v=$('cam');
   cp.then(st=>{v.srcObject=st;v.hidden=false;v.play().catch(()=>{});}).catch(()=>{$('hint').textContent='Camera is blocked, so this plays without it. Allow camera for this site and reload to see the table.';});
   mp.then(r=>{if(r==='granted')addEventListener('deviceorientation',e=>{if(e.beta!=null)ori=e;},true);});
@@ -318,7 +329,7 @@ function startCam(){
 }
 const zee=new THREE.Vector3(0,0,1),eul=new THREE.Euler(),q0=new THREE.Quaternion(),q1=new THREE.Quaternion(-Math.sqrt(.5),0,0,Math.sqrt(.5)),devQ=new THREE.Quaternion();
 function camOrient(){
-  if(!ori)return;
+  if(!ori||!useGyro){camera.position.set(0,.33,.43);camera.lookAt(0,0,-.03);return;}
   const d=Math.PI/180,orient=((screen.orientation&&screen.orientation.angle)||window.orientation||0)*d;
   eul.set((ori.beta||0)*d,(ori.alpha||0)*d,-(ori.gamma||0)*d,'YXZ');devQ.setFromEuler(eul).multiply(q1).multiply(q0.setFromAxisAngle(zee,-orient));
   if(recenter){const f=new THREE.Vector3(0,0,-1).applyQuaternion(devQ);const yaw=Math.atan2(-f.x,-f.z);yawQ.setFromAxisAngle(new THREE.Vector3(0,1,0),-yaw);recenter=false;}
@@ -327,10 +338,10 @@ function camOrient(){
 
 // ---- screens ----
 function show(id){for(const s of['menu','lobby'])$(s).hidden=s!==id;$('hud').hidden=id!=='hud';}
-function hint(){$('modeHint').textContent=xrOK?'Full AR on this phone: you’ll tap the table to place your court.':'Camera mode on this phone: the court appears on the table in front of you. Tap Re-center if it drifts.';}
+function hint(){$('bSimpleL').hidden=!xrOK;$('modeHint').textContent=xrOK?'Full AR on this phone: you’ll tap the table to place your court.':'Camera mode on this phone: the court appears on the table in front of you. Tap Re-center if it drifts.';}
 function showLobby(){show('lobby');$('hostBox').hidden=role!=='host';$('guestBox').hidden=role!=='guest';$('soloBox').hidden=role!=='solo';hint();
   if(role==='solo')lstat('');}
-function enterGame(){started=true;show('hud');keepAwake();if(role==='solo')begin();}
+function enterGame(){started=true;show('hud');keepAwake();if(role==='solo'&&S.ph==='wait')begin();}
 $('bHost').onclick=()=>{initAudio();hostGame();};
 $('bJoin').onclick=()=>{initAudio();joinGame($('code').value);};
 $('code').addEventListener('keydown',e=>{if(e.key==='Enter')$('bJoin').click();});
@@ -339,6 +350,8 @@ $('bBack').onclick=()=>{location.href=location.pathname;};
 $('bAR').onclick=()=>{initAudio();if(xrOK)startXR();else startCam();};
 $('bExit').onclick=()=>{if(xrSession)xrSession.end();else location.href=location.pathname;};
 $('bPlace').onclick=()=>{if(mode==='xr'){wantPlace=true;placed=false;}else recenter=true;};
+$('bMode').onclick=()=>{if(mode==='xr'&&xrSession){toCam=true;xrSession.end();}else if(mode==='cam'){useGyro=!useGyro;recenter=true;$('bMode').textContent=useGyro?'Lock court':'Follow table';}};
+$('bSimpleL').onclick=()=>{initAudio();startCam();};
 $('bStart').onclick=()=>{initAudio();if(mode==='xr'&&!placed)placeFallback();begin();};
 $('bRematch').onclick=()=>{if(role==='host'&&!connected){$('overSub').textContent='Your friend isn’t connected.';return;}begin();};
 
@@ -346,10 +359,13 @@ $('bRematch').onclick=()=>{if(role==='host'&&!connected){$('overSub').textConten
 let last=performance.now();
 renderer.setAnimationLoop((t,frame)=>{
   const now=performance.now(),dt=Math.min(.033,(now-last)/1000);last=now;
+  if(frame&&mode==='xr'){const vp=frame.getViewerPose(renderer.xr.getReferenceSpace());
+    if(vp){const tp=vp.transform.position,to=vp.transform.orientation;viewPos.set(tp.x,tp.y,tp.z);viewQ.set(to.x,to.y,to.z,to.w);xrTrack=vp.emulatedPosition?'limited':'ok';}else xrTrack='lost';
+    if(xrTrack==='ok')badSince=0;else if(!badSince)badSince=now;}
   if(frame&&hitSrc&&(!placed||wantPlace)){const res=frame.getHitTestResults(hitSrc);
     if(res.length){const pose=res[0].getPose(renderer.xr.getReferenceSpace());reticle.visible=true;lastHit=performance.now();reticle.matrix.fromArray(pose.transform.matrix);}else reticle.visible=false;}
   if(mode==='xr'&&xrSession&&!xrSession.domOverlayState&&court.visible){ // aim control when touch overlay is unavailable
-    const cam=renderer.xr.getCamera(),o=new THREE.Vector3(),q=new THREE.Quaternion();cam.getWorldPosition(o);cam.getWorldQuaternion(q);
+    const o=viewPos.clone(),q=viewQ.clone();
     const dir=new THREE.Vector3(0,0,-1).applyQuaternion(q);const lo=court.worldToLocal(o.clone()),lp=court.worldToLocal(o.clone().add(dir));const ld=lp.sub(lo);
     if(ld.y<-1e-3){const k=-lo.y/ld.y;myX=clamp(lo.x+ld.x*k,-W/2+PW/2,W/2-PW/2);}}
   if(mode==='cam')camOrient();
