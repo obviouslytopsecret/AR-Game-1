@@ -133,6 +133,7 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
 .pcard i{flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:block;box-shadow:inset -4px -5px 0 rgba(0,0,0,.18)}
 .pcard b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .pcard small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+#players.many{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#players.many .pcard{padding:6px;gap:6px;border-radius:12px}#players.many .pcard i{width:22px;height:22px}#players.many .pcard small{display:none}
 .pcard.empty{opacity:.35;justify-content:center;color:var(--muted);min-height:34px}
 .lobbybtns{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .hint{color:var(--muted);font-size:14px;line-height:1.45;margin:0;max-width:48em}
@@ -142,6 +143,7 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
   font-variant-numeric:tabular-nums}
 .chip i{width:20px;height:20px;border-radius:50%;display:block}
 .chip.out{opacity:.4}
+#scores.many{gap:4px}#scores.many .chip{font-size:11px;padding:3px 8px 3px 3px;gap:5px}#scores.many .chip i{width:12px;height:12px}
 #codechip{position:absolute;top:max(12px,env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));background:var(--panel);
   border-radius:12px;padding:8px 12px;font-size:13px;color:var(--muted);text-align:right}
 #codechip b{font-family:var(--display);font-weight:400;color:var(--gold);font-size:22px;letter-spacing:.1em;display:block}
@@ -318,7 +320,7 @@ h1{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.5px;line-
       </div>
     </div>
     <div class="lobbymain">
-      <div class="label" id="lobbycount">Waiting for players (2 to 8)</div>
+      <div class="label" id="lobbycount">Waiting for players (2 or more)</div>
       <div id="players"></div>
       <div class="lobbybtns">
         <button id="btn-start" class="go" disabled>Start match</button>
@@ -2696,10 +2698,16 @@ var qrcode = function() {
 /* ==================== shared config ==================== */
 const ARTIFACT_URL = "";
 const PEER_PREFIX = "bumperblobs-v1-";
-const MAX_PLAYERS = 8, WIN_SCORE = 5;
+const WIN_SCORE = 5, PRESET_COLORS = 8; // no player cap
 const COLORS = [
   {n:"Bubblegum",c:"#ff6b8b"},{n:"Mango",c:"#ffc94a"},{n:"Mint",c:"#5ee0a0"},{n:"Sky",c:"#58b4ff"},
   {n:"Grape",c:"#b98cff"},{n:"Tangerine",c:"#ff9147"},{n:"Lime",c:"#c4ef4f"},{n:"Cotton",c:"#f6f0ff"}];
+// past the 8 presets, colors are generated the same way on host and phones
+function colorOf(i){
+  i = Number.isInteger(i) && i >= 0 ? Math.min(i, 999) : 0;
+  while (COLORS.length <= i){ const k = COLORS.length; COLORS.push({n:"Blob " + (k+1), c:"hsl(" + Math.round((k*137.508 + 15) % 360) + " " + (k % 2 ? 70 : 85) + "% " + (k % 3 ? 62 : 70) + "%)"}); }
+  return COLORS[i];
+}
 const BOT_NAMES = ["Bonk","Wobble","Squish","Pudding","Jiggle","Gloop","Mochi","Boing"];
 const params = new URLSearchParams(location.search);
 const $ = id => document.getElementById(id);
@@ -2921,7 +2929,7 @@ const GAME = {
   onButton(p, i){ if (i === 0) p.wantDash = true; },
   onSwipe(p, dx, dy){}
 };
-const W = {R0:420, RMIN:125, SHRINK_DELAY:5, SHRINK_TIME:40, BR:26, ACC:1150, DAMP:3.0, DASH_V:640, DASH_T:.22, DASH_CD:1.4, E:.9, KNOCK:150};
+const W = {R0:420, RMIN:125, BASE_R0:420, BASE_RMIN:125, SHRINK_DELAY:5, SHRINK_TIME:40, BR:26, ACC:1150, DAMP:3.0, DASH_V:640, DASH_T:.22, DASH_CD:1.4, E:.9, KNOCK:150};
 const game = {
   phase:"lobby", players:new Map(), order:[], t:0, phaseT:0, R:W.R0, banner:"", sub:"", feed:[], parts:[], shake:0,
   roundNo:0, champion:null, lastGo:new Map()
@@ -2931,8 +2939,12 @@ let net = null;
 function freeColor(want){
   const used = new Set([...game.players.values()].map(p => p.col));
   if (want >= 0 && want < COLORS.length && !used.has(want)) return want;
-  for (let i=0;i<COLORS.length;i++) if (!used.has(i)) return i;
-  return 0;
+  for (let i=0;;i++) if (!used.has(i)){ colorOf(i); return i; }
+}
+// rink grows with the crowd so spawns stay spread out: 6 or fewer keep the classic size
+function sizeArena(n){
+  const k = Math.max(1, Math.sqrt(n/6));
+  W.R0 = Math.round(W.BASE_R0*k); W.RMIN = Math.round(W.BASE_RMIN*k);
 }
 function addPlayer(cid, name, col, bot){
   const p = {cid, name:name || "Blob", col:freeColor(col), score:0, bot:!!bot, connected:true, inp:{x:0,y:0}, bSeen:[0,0], swSeen:0, goSeen:0, blob:null, hits:0, wander:Math.random()*6};
@@ -2948,11 +2960,6 @@ const hostHandlers = {
       p.connected = true; p.name = name;
       if (Number.isInteger(info.color) && info.color !== p.col){ const c = freeColor(info.color); if (c === info.color) p.col = c; }
       p.bSeen = null; p.swSeen = null; p.goSeen = null; renderLobby(); return true; }
-    const humans = [...game.players.values()];
-    if (humans.length >= MAX_PLAYERS){
-      const bot = humans.find(q => q.bot); // a person bumps a CPU out of a full lobby
-      if (bot && game.phase === "lobby") removePlayer(bot.cid); else return false;
-    }
     p = addPlayer(cid, name, Number.isInteger(info.color) ? info.color : -1, false);
     feed(p.name + " joined");
     renderLobby(); return true;
@@ -2986,27 +2993,30 @@ function renderLobby(){
   const box = $("players"); box.replaceChildren();
   for (const p of list){
     const d = document.createElement("div"); d.className = "pcard";
-    const i = document.createElement("i"); i.style.background = COLORS[p.col].c;
+    const i = document.createElement("i"); i.style.background = colorOf(p.col).c;
     const b = document.createElement("b"); b.textContent = p.name;
     const s = document.createElement("small"); s.textContent = p.bot ? "CPU" : p.local ? "This screen" : (p.connected ? "Phone connected" : "Reconnecting…");
     b.appendChild(s); d.append(i, b); box.appendChild(d);
   }
-  for (let k=list.length; k<Math.max(4, list.length+1) && k<MAX_PLAYERS; k++){
+  box.classList.toggle("many", list.length > 8);
+  for (let k=list.length; k<Math.max(4, list.length+1); k++){
     const d = document.createElement("div"); d.className = "pcard empty"; d.textContent = "Open slot"; box.appendChild(d);
   }
-  $("lobbycount").textContent = list.length + " of " + MAX_PLAYERS + " players" + (list.length < 2 ? " · need at least 2" : " · ready");
+  $("lobbycount").textContent = list.length + " player" + (list.length === 1 ? "" : "s") + (list.length < 2 ? " · need at least 2" : " · ready");
   $("btn-start").disabled = $("mini-start").disabled = list.length < 2;
   $("mini-count").textContent = list.length + " player" + (list.length === 1 ? "" : "s") + (list.length < 2 ? " · add a CPU" : "");
-  $("mini-addbot").disabled = list.length >= MAX_PLAYERS;
+  $("mini-addbot").disabled = false;
   $("btn-rmbot").disabled = !list.some(p => p.bot);
-  $("btn-addbot").disabled = list.length >= MAX_PLAYERS;
+  $("btn-addbot").disabled = false;
+  if (game.phase === "lobby"){ sizeArena(list.length); game.R = W.R0; }
   renderScores();
 }
 function renderScores(){
   const el = $("scores"); el.replaceChildren();
+  el.classList.toggle("many", game.order.length > 8);
   for (const c of game.order){ const p = game.players.get(c); if (!p) continue;
     const d = document.createElement("div"); d.className = "chip" + (p.blob && !p.blob.alive ? " out" : "");
-    const i = document.createElement("i"); i.style.background = lcd ? blobFill(p) : COLORS[p.col].c;
+    const i = document.createElement("i"); i.style.background = lcd ? blobFill(p) : colorOf(p.col).c;
     d.append(i, document.createTextNode(p.name + "  " + p.score)); el.appendChild(d); }
 }
 
@@ -3027,6 +3037,7 @@ function startRound(){
   game.roundNo++;
   const list = game.order.map(c => game.players.get(c)).filter(p => p && (p.connected || p.bot));
   const n = list.length, rot = Math.random()*Math.PI*2;
+  sizeArena(n);
   list.forEach((p, i) => {
     const a = rot + i/n*Math.PI*2, r = W.R0*.62;
     p.blob = spawnBlob(a, r);
@@ -3150,7 +3161,7 @@ function simulate(dt){
       const k = b.lastHitBy && (game.t - b.lastHitT) < 3 ? b.lastHitBy : null;
       if (!practice) feed(k ? k.name + " bonked " + p.name + " off!" : p.name + " slipped off the ice");
       for (let n=0;n<18;n++){ const ang = Math.random()*Math.PI*2, s = 40+Math.random()*180;
-        game.parts.push({x:b.x, y:b.y, vx:Math.cos(ang)*s, vy:Math.sin(ang)*s, life:.7, max:.7, col:COLORS[p.col].c}); }
+        game.parts.push({x:b.x, y:b.y, vx:Math.cos(ang)*s, vy:Math.sin(ang)*s, life:.7, max:.7, col:colorOf(p.col).c}); }
     } }
   for (const q of game.parts){ q.x += q.vx*dt; q.y += q.vy*dt; q.vx *= .92; q.vy *= .92; q.life -= dt; }
   game.parts = game.parts.filter(q => q.life > 0);
@@ -3167,7 +3178,7 @@ function resize(){
   VW = cv.clientWidth; VH = cv.clientHeight; cv.width = Math.max(1, Math.round(VW*DPR)); cv.height = Math.max(1, Math.round(VH*DPR));
   cv.style.imageRendering = lcd ? "pixelated" : "";
 }
-function blobFill(p){ return lcd ? [LCD[3], LCD[2], LCD[1]][p.col % 3] : COLORS[p.col].c; }
+function blobFill(p){ return lcd ? [LCD[3], LCD[2], LCD[1]][p.col % 3] : colorOf(p.col).c; }
 function draw(){
   const g = cx; g.setTransform(DPR,0,0,DPR,0,0); g.imageSmoothingEnabled = !lcd;
   if (lcd){ g.fillStyle = LCD[0]; g.fillRect(0,0,VW,VH); }
@@ -3198,7 +3209,7 @@ function draw(){
   g.beginPath(); g.arc(0,0,game.R,0,Math.PI*2); g.stroke();
   // trails
   for (const p of game.players.values()){ const b = p.blob; if (!b || !b.alive) continue;
-    for (const t of b.trail){ g.globalAlpha = t.a*(lcd ? .5 : .35); g.fillStyle = lcd ? LCD[1] : COLORS[p.col].c; g.beginPath(); g.arc(t.x, t.y, W.BR*.85, 0, Math.PI*2); g.fill(); }
+    for (const t of b.trail){ g.globalAlpha = t.a*(lcd ? .5 : .35); g.fillStyle = lcd ? LCD[1] : colorOf(p.col).c; g.beginPath(); g.arc(t.x, t.y, W.BR*.85, 0, Math.PI*2); g.fill(); }
     g.globalAlpha = 1; }
   // blobs
   const blobs = [...game.players.values()].filter(p => p.blob && p.blob.alive).sort((a,b)=>a.blob.y-b.blob.y);
@@ -3333,9 +3344,8 @@ $("mini-more").onclick = () => { $("lobby").classList.remove("mini"); resize(); 
 $("btn-mode").onclick = () => location.reload();
 $("btn-less").onclick = () => { $("lobby").classList.add("mini"); resize(); };
 $("btn-addbot").onclick = $("mini-addbot").onclick = () => {
-  if (game.players.size >= MAX_PLAYERS) return;
   const used = new Set([...game.players.values()].map(p => p.name));
-  const nm = "CPU " + (BOT_NAMES.find(n => !used.has("CPU " + n)) || "Blob");
+  const nm = "CPU " + (BOT_NAMES.find(n => !used.has("CPU " + n)) || ("Blob " + (game.players.size + 1)));
   addPlayer("bot-" + randId(), nm, -1, true); renderLobby();
 };
 $("btn-rmbot").onclick = () => { const b = [...game.players.values()].reverse().find(p => p.bot); if (b){ removePlayer(b.cid); renderLobby(); } };
@@ -3433,7 +3443,7 @@ const padState = {inp:newInput(), me:null, g:{}, lastHits:0, name:"", col:0};
 const padEmit = () => { if (pad) pad.send(padState.inp); };
 function buildSwatches(box, start, onPick){
   box.replaceChildren(); let pick = start;
-  COLORS.forEach((c, i) => {
+  COLORS.slice(0, PRESET_COLORS).forEach((c, i) => {
     const b = el("button"); b.type = "button"; b.style.background = c.c; b.setAttribute("aria-label", c.n);
     b.setAttribute("aria-pressed", String(i === pick));
     b.onclick = () => { pick = i; for (const x of box.children) x.setAttribute("aria-pressed", String(x === b)); onPick && onPick(i); };
@@ -3442,7 +3452,7 @@ function buildSwatches(box, start, onPick){
   return () => pick;
 }
 let getPick = null;
-function savedCol(){ const v = parseInt(store.get("bb-col") || "", 10); return Number.isInteger(v) && v >= 0 && v < COLORS.length ? v : Math.floor(Math.random()*COLORS.length); }
+function savedCol(){ const v = parseInt(store.get("bb-col") || "", 10); return Number.isInteger(v) && v >= 0 && v < PRESET_COLORS ? v : Math.floor(Math.random()*PRESET_COLORS); }
 async function openJoin(){
   show("join");
   if (!getPick) getPick = buildSwatches($("swatches"), savedCol());
@@ -3476,7 +3486,7 @@ $("joinform").addEventListener("submit", async e => {
 function setPadIdentity(name, col){
   padState.name = name; padState.col = col;
   $("padname").textContent = name; $("padmini").textContent = name;
-  $("pad").style.setProperty("--pc", (COLORS[col] || COLORS[0]).c);
+  $("pad").style.setProperty("--pc", colorOf(col).c);
 }
 function enterPad(name, col){
   show("pad"); setPadIdentity(name, col);
@@ -3486,7 +3496,7 @@ function enterPad(name, col){
 }
 function onPadStatus(s){
   if (s === "lost") overlay("Disconnected", "Lost the link to the big screen.", "Rejoin", () => location.reload());
-  if (s === "full") overlay("Game is full", "This game already has 8 players.", "Back", () => location.reload());
+  if (s === "full") overlay("Game is full", "This game is not taking new players right now.", "Back", () => location.reload());
 }
 function overlay(title, text, btn, fn){
   $("padover").hidden = !title; if (!title) return;
