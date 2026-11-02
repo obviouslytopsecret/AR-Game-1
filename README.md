@@ -4,6 +4,8 @@ Party game: a laptop or TV hosts, phones join as controllers over the internet (
 
 Play: https://obviouslytopsecret.github.io/AR-Game-1/
 
+3D sports pack (phones as motion controllers): https://obviouslytopsecret.github.io/AR-Game-1/sports/ (source of truth on the `sports-3d` branch; `sports/` on main is a copy so Pages can serve it).
+
 The earlier AR Pong build lives on the `ar-pong-v1` branch.
 
 ## Modes
