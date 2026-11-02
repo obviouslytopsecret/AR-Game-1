@@ -44,7 +44,7 @@ class PingPong {
     this.ball = {p:{x:0, y:H + .2, z:1.5}, v:{x:0, y:0, z:0}, s:0, netHit:false};
     this.cams = [0, 1].map(i => { const c = new THREE.PerspectiveCamera(52, 1, .05, 60); c.userData.x = 0; return c; });
     this.pl = [0, 1].map(i => {
-      const buddy = core.makeBuddy(core.seats[i].col); buddy.rotation.y = i === 0 ? Math.PI : 0; scene.add(buddy);
+      const buddy = core.makeBuddy(core.pSeat(i).col); buddy.rotation.y = i === 0 ? Math.PI : 0; scene.add(buddy);
       const paddle = this.makePaddle(); scene.add(paddle);
       const pos = {x:0, y:H + .2, z:side(i)*1.65};
       return {buddy, paddle, pos, swingT:-9, swingDir:1, swingSpin:0, cool:0, bodyX:0, plan:null};
@@ -115,9 +115,9 @@ class PingPong {
     if (this.phase !== "flight") return;
     this.sc[w]++; this.phase = "point"; this.t = 1.8; this.awaiting = -1; this.contact = null;
     const core = this.core;
-    if (!core.isBot(w)) core.seats[w].pt++;
+    if (!core.pBot(w)) core.pSeat(w).pt++;
     this.lastMsg = reason;
-    core.banner(-1, `${esc(reason)}<small>Point ${esc(core.nameOf(w))}</small>`, 1.6);
+    core.banner(-1, `${esc(reason)}<small>Point ${esc(core.pName(w))}</small>`, 1.6);
     Sfx.chime(true);
   }
   step(dt){
@@ -135,7 +135,11 @@ class PingPong {
       if (this.t <= 0){ this.phase = "toss"; this.tossT0 = gt; this.tossId = (this.tossId||0) + 1; b.v = {x:0, y:2.1, z:0}; b.s = 0; }
     } else if (this.phase === "toss"){
       b.p.y += b.v.y*dt - .5*G*dt*dt; b.v.y -= G*dt;
-      if (b.p.y < H + .02 && b.v.y < 0){ this.phase = "pre"; this.t = .6; this.tosses++; }
+      if (b.p.y < H + .02 && b.v.y < 0){
+        this.tosses++;
+        if (this.tosses >= 4){ this.serve(this.srv, {power:.35, spin:0, yaw:0, pit:0}); this.core.feedback(this.srv, "Auto serve", "#9aa7d6"); }
+        else { this.phase = "pre"; this.t = .6; }
+      }
     } else if (this.phase === "flight"){
       const ev = []; stepBall(b, dt, ev);
       for (const e of ev) this.referee(e);
@@ -147,7 +151,7 @@ class PingPong {
         if (this.t <= 0){
           if (this.isOver()){
             this.phase = "over"; const w = this.sc[0] > this.sc[1] ? 0 : 1;
-            core.finish(core.nameOf(w) + " wins!", core.nameOf(0) + " " + this.sc[0] + " – " + this.sc[1] + " " + core.nameOf(1));
+            core.finish([w, 1 - w], core.pName(w) + " wins!", core.pName(0) + " " + this.sc[0] + " – " + this.sc[1] + " " + core.pName(1));
           } else this.newPoint();
         }
       }
@@ -260,14 +264,14 @@ class PingPong {
     this.lastHitter = slot; this.awaiting = 1 - slot; this.landed = false; this.needOwn = false;
     this.phase = "flight"; this.shotT = this.core.gt; this.shotId++;
     this.contact = null;
-    if (!this.core.isBot(slot)) this.core.seats[slot].hit++;
+    if (!this.core.pBot(slot)) this.core.pSeat(slot).hit++;
     // prediction runs after needOwn is settled by serve(); defer a tick
     this.needPredict = true;
   }
   botThink(gt){
     if (this.needPredict){ this.needPredict = false; this.contact = this.predictContact(this.awaiting); }
     for (const slot of [0, 1]){
-      if (!this.core.isBot(slot)) continue;
+      if (!this.core.pBot(slot)) continue;
       const P = this.pl[slot];
       const mk = () => ({power:rnd(.3, .98), spin:rnd(-.4, 1), yaw:rnd(-34, 34), pit:rnd(-10, 10), lag:0, touch:false});
       if (this.phase === "toss" && this.srv === slot && (!P.plan || P.plan.id !== "t" + this.tossId)) P.plan = {id:"t" + this.tossId, t:this.tossT0 + rnd(.3, .55), sw:mk()};
@@ -278,13 +282,13 @@ class PingPong {
   key(e){
     const k = e.key.toLowerCase();
     const sw = {power:.6, spin:.3, yaw:0, pit:0, lag:0, touch:true};
-    if (k === "a" && this.core.isBot(0) === false) this.swing(0, sw);
-    if (k === "l" && this.core.isBot(1) === false) this.swing(1, sw);
+    if (k === "a" && this.core.pBot(0) === false) this.swing(0, sw);
+    if (k === "l" && this.core.pBot(1) === false) this.swing(1, sw);
   }
 
   /* ---------- phone status ---------- */
   padState(slot){
-    const me = this.sc[slot], them = this.sc[1 - slot], sub = `You ${me} – ${them} ${this.core.nameOf(1 - slot)}`;
+    const me = this.sc[slot], them = this.sc[1 - slot], sub = `You ${me} – ${them} ${this.core.pName(1 - slot)}`;
     const ph = this.phase;
     if (ph === "countdown") return {msg:"Get ready", sub:"Hold your phone like a paddle"};
     if (ph === "pre" || ph === "toss") return this.srv === slot ? {msg:"Your serve", sub:"Swing as the ball drops"} : {msg:"Their serve", sub};
@@ -303,10 +307,10 @@ class PingPong {
     this.ballMesh.position.set(b.p.x, b.p.y, b.p.z);
     // receiver's hit window glow
     let glow = false;
-    if (this.phase === "flight" && this.landed && this.contact && Math.abs(this.contact.t - gt) < .1){ glow = true; this.glow.material.color.set(core.seats[this.awaiting].col); }
+    if (this.phase === "flight" && this.landed && this.contact && Math.abs(this.contact.t - gt) < .1){ glow = true; this.glow.material.color.set(core.pSeat(this.awaiting).col); }
     this.glow.visible = glow; this.glow.position.copy(this.ballMesh.position);
     for (const slot of [0, 1]){
-      const P = this.pl[slot], sg = side(slot), seat = core.seats[slot];
+      const P = this.pl[slot], sg = side(slot), seat = core.pSeat(slot);
       let tgt = {x:0, y:H + .22, z:sg*1.7};
       if ((this.phase === "pre" || this.phase === "toss") && this.srv === slot) tgt = {x:b.p.x + right(slot)*.14, y:H + .2, z:sg*(HL + .2)};
       else if (this.phase === "flight" && this.awaiting === slot && this.contact){ const c = this.contact.p; tgt = {x:clamp(c.x, -1.3, 1.3), y:clamp(c.y, H + .05, H + .95), z:sg*clamp(Math.abs(c.z) + .05, 1.35, 2.6)}; }
@@ -324,8 +328,8 @@ class PingPong {
       if (u >= 0 && u <= 1){ arc = lerp(-1.1, 1.0, 1 - Math.pow(1 - u, 2)); fwd = Math.sin(u*Math.PI)*.16; lift = lerp(-.1, .12, u)*Math.sign(P.swingSpin || .01); }
       const dirSign = fore ? 1 : -1;
       P.paddle.position.set(P.pos.x, P.pos.y + lift, P.pos.z - sg*fwd);
-      const yawLive = seat.mo === "m" && !core.isBot(slot) ? -seat.yaw*Math.PI/180*.6 : 0;
-      const pitLive = seat.mo === "m" && !core.isBot(slot) ? -seat.pit*Math.PI/180*.6 : 0;
+      const yawLive = seat.mo === "m" && !core.pBot(slot) ? -seat.yaw*Math.PI/180*.6 : 0;
+      const pitLive = seat.mo === "m" && !core.pBot(slot) ? -seat.pit*Math.PI/180*.6 : 0;
       P.paddle.rotation.set(pitLive*sg, (slot === 0 ? Math.PI : 0) + yawLive + arc*.9*dirSign*-1*(slot === 0 ? 1 : -1), fore ? -.35*right(slot) : .35*right(slot), "YXZ");
       // camera behind each player
       const cam = this.cams[slot];
@@ -336,11 +340,11 @@ class PingPong {
     // hud
     for (const v of [0, 1]){
       const o = 1 - v, srv = this.phase === "countdown" ? -1 : this.srv;
-      const nm = i => `<span style="color:${core.seats[i].col}">${esc(core.nameOf(i))}</span>${srv === i ? '<span class="srv"></span>' : ""}`;
+      const nm = i => `<span style="color:${core.pSeat(i).col}">${esc(core.pName(i))}</span>${srv === i ? '<span class="srv"></span>' : ""}`;
       core.hudSet(v, "sb", `${nm(v)}<span class="s">${this.sc[v]}</span><span class="mute">–</span><span class="s">${this.sc[o]}</span>${nm(o)}`);
       let tip = "";
-      if ((this.phase === "pre" || this.phase === "toss") && this.srv === v) tip = core.isBot(v) ? "" : "Your serve: swing as the ball drops";
-      else if (this.phase === "flight" && this.awaiting === v && !core.isBot(v)) tip = this.landed ? "Swing!" : "";
+      if ((this.phase === "pre" || this.phase === "toss") && this.srv === v) tip = core.pBot(v) ? "" : "Your serve: swing as the ball drops";
+      else if (this.phase === "flight" && this.awaiting === v && !core.pBot(v)) tip = this.landed ? "Swing!" : "";
       core.hudSet(v, "tip", tip);
     }
     core.renderViews(this.scene, this.cams);
@@ -355,7 +359,7 @@ registerGame({
   options:[{key:"to", label:"Points to win", values:[11, 5, 21, 3]}],
   howto:"Swing your phone like a paddle. The paddle moves to the ball for you, so you only time the swing. Early swings go left, late swings go right, and twisting the phone face aims too. Swing up through the ball for topspin, chop down for slice, swing harder to hit deeper. A yellow glow on the ball means now. No motion sensors? Swipe up on the phone instead.",
   pad:"Hold the phone like a paddle handle, screen facing the TV, and tap Recenter. Then swing when the ball reaches you.",
-  season:{to:3},
+  season:{to:3}, seasonRules:"First to 3 points",
   create(core, opts){ return new PingPong(core, opts); }
 });
 })();
