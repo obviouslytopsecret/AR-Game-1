@@ -208,6 +208,16 @@ const SEAT_COLORS = ["#ff6b6b","#4fb3ff","#6be38f","#c38bff"];
 const params = new URLSearchParams(location.search);
 const $ = id => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+// rotation matrix given by its three columns -> quaternion [x, y, z, w]
+function quatCols(a, b, c){
+  const m00 = a[0], m10 = a[1], m20 = a[2], m01 = b[0], m11 = b[1], m21 = b[2], m02 = c[0], m12 = c[1], m22 = c[2], tr = m00 + m11 + m22;
+  let x, y, z, w;
+  if (tr > 0){ const S = Math.sqrt(tr + 1)*2; w = S/4; x = (m21 - m12)/S; y = (m02 - m20)/S; z = (m10 - m01)/S; }
+  else if (m00 > m11 && m00 > m22){ const S = Math.sqrt(1 + m00 - m11 - m22)*2; w = (m21 - m12)/S; x = S/4; y = (m01 + m10)/S; z = (m02 + m20)/S; }
+  else if (m11 > m22){ const S = Math.sqrt(1 + m11 - m00 - m22)*2; w = (m02 - m20)/S; x = (m01 + m10)/S; y = S/4; z = (m12 + m21)/S; }
+  else { const S = Math.sqrt(1 + m22 - m00 - m11)*2; w = (m10 - m01)/S; x = (m02 + m20)/S; y = (m12 + m21)/S; z = S/4; }
+  return [x, y, z, w];
+}
 const lerp = (a,b,t) => a + (b-a)*t;
 const cleanName = s => String(s || "").replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁯﻿<>&"]/g,"").trim().slice(0,12);
 const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
@@ -314,6 +324,7 @@ class PadNet {
   flush(force){
     const i = this.inp; if (!i || !this.conn || !this.conn.open) return;
     const m = {yaw:Math.round(i.yaw), pit:Math.round(i.pit), sw:i.sw.slice(0,5).map(v => +(+v).toFixed(3)), go:i.go, mo:i.mo, vt:i.vt, dr:i.dr ? 1 : 0, tx:Math.round((i.tx||0)*100), ty:Math.round((i.ty||0)*100)};
+    if (i.q) m.q = i.q.map(v => Math.round(v*1000));
     const key = JSON.stringify(m);
     const now = performance.now();
     if (!force && key === this.lastKey && now - this.lastSend < 33) return;
@@ -371,7 +382,7 @@ const Pad = {
   setMode(m){
     this.mode = m; this.inp.mo = m; store.set("ps-mode", m);
     $("btn-mode").textContent = m === "m" ? "Use touch instead" : "Use motion instead";
-    if (m === "t"){ this.pose = {yaw:0, pit:0}; this.inp.yaw = 0; this.inp.pit = 0; }
+    if (m === "t"){ this.pose = {yaw:0, pit:0}; this.inp.yaw = 0; this.inp.pit = 0; this.inp.q = null; }
     this.render(); this.net.send(this.inp, true);
   },
   setupMotion(){
@@ -416,17 +427,24 @@ const Pad = {
     const c = this.cal, v = c.useTop ? top : n;
     const az = Math.atan2(v[0], v[1]), el = Math.asin(clamp(v[2], -1, 1));
     let yaw = (az - c.az) / d; while (yaw > 180) yaw -= 360; while (yaw < -180) yaw += 360;
-    const pit = (el - c.el) / d;
+    const pit = (el - ((this.g || {}).pm === "paddle" && !c.useTop ? 0 : c.el)) / d;
     if (this.mode === "m"){ this.pose = {yaw:clamp(yaw,-90,90), pit:clamp(pit,-90,90)}; this.inp.yaw = this.pose.yaw; this.inp.pit = this.pose.pit; }
     const now = performance.now();
     this.poseHist.push({t:now, yaw:this.pose.yaw, pit:this.pose.pit}); while (this.poseHist.length > 40) this.poseHist.shift();
+    if ((this.g || {}).pm === "paddle" && this.mode === "m" && c){
+      // full phone pose for the paddle: device axes in a world frame turned so the recentered heading is "forward"
+      const x = [top[1]*n[2] - top[2]*n[1], top[2]*n[0] - top[0]*n[2], top[0]*n[1] - top[1]*n[0]];
+      const cf = Math.cos(c.az), sf = Math.sin(c.az), R = v => [v[0]*cf - v[1]*sf, v[0]*sf + v[1]*cf, v[2]];
+      this.inp.q = quatCols(R(x), R(top), R(n));
+    } else this.inp.q = null;
     this.net.send(this.inp); this.drawAim();
   },
   calibrate(){
     this.tcal = this.lastBG || null;
     const o = this.lastOri; if (!o){ this.cal = null; return; }
     const useTop = Math.abs(o.n[2]) > .8; const v = useTop ? o.top : o.n;
-    this.cal = {useTop, az:Math.atan2(v[0], v[1]), el:Math.asin(clamp(v[2],-1,1))};
+    // paddle mode keeps tilt absolute (only the heading is recentered), so the paddle face is the phone face
+    this.cal = {useTop, az:Math.atan2(v[0], v[1]), el:(this.g || {}).pm === "paddle" && !useTop ? 0 : Math.asin(clamp(v[2],-1,1))};
   },
   onMotion(e){
     const rr = e.rotationRate, ag = e.accelerationIncludingGravity, la = e.acceleration;
@@ -684,6 +702,8 @@ const Core = {
     const s = this.seatOf(cid); if (!s) return;
     s.rtt = rtt; s.mo = m.mo === "t" ? "t" : "m";
     s.yaw = clamp(+m.yaw||0, -90, 90); s.pit = clamp(+m.pit||0, -90, 90); s.dr = m.dr ? 1 : 0; s.tx = clamp((+m.tx||0)/100, -1, 1); s.ty = clamp((+m.ty||0)/100, -1, 1);
+    s.q = null;
+    if (Array.isArray(m.q) && m.q.length === 4){ const q = m.q.map(v => +v || 0), l = Math.hypot(...q); if (l > 1) s.q = q.map(v => v/l); }
     const sw = Array.isArray(m.sw) ? m.sw : [0];
     const n = sw[0]|0;
     if (s.swSeen === null) s.swSeen = n;

@@ -47,7 +47,9 @@ class PingPong {
       const buddy = core.makeBuddy(core.pSeat(i).col); buddy.rotation.y = i === 0 ? Math.PI : 0; scene.add(buddy);
       const paddle = this.makePaddle(); scene.add(paddle);
       const pos = {x:0, y:H + .2, z:side(i)*1.65};
-      return {buddy, paddle, pos, swingT:-9, swingDir:1, swingSpin:0, cool:0, bodyX:0, plan:null};
+      // phone world (x east, y forward, z up) -> this player's view of the table (forward = toward the opponent)
+      const sg = side(i), qGame = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(sg, 0, 0), new THREE.Vector3(0, 0, -sg), new THREE.Vector3(0, 1, 0)));
+      return {qGame, qPhone:new THREE.Quaternion(), buddy, paddle, pos, swingT:-9, swingDir:1, swingSpin:0, cool:0, bodyX:0, plan:null};
     });
     this.sc = [0, 0]; this.phase = "idle"; this.t = 0; this.shotId = 0; this.lastMsg = "";
   }
@@ -211,8 +213,9 @@ class PingPong {
     if (Math.abs(this.ball.p.z) < .2){ return; }
     const en = tau > 0 ? tau/EARLY : tau/LATE; // +1 very early, -1 very late
     const spin = clamp(sw.spin*.75 + clamp(-sw.pit/45, -1, 1)*.3, -1, 1);
-    let aim = clamp(sw.yaw/30, -1.2, 1.2)*.6 - en*.7;
-    if (Math.abs(en) > .78) aim -= Math.sign(en)*.45;
+    // motion: the paddle face (phone heading) sets the direction, timing only nudges it; swipe: timing steers
+    let aim = sw.touch ? clamp(sw.yaw/30, -1.2, 1.2)*.6 - en*.7 : clamp(sw.yaw/25, -1.2, 1.2)*.85 - en*.25;
+    if (sw.touch && Math.abs(en) > .78) aim -= Math.sign(en)*.45;
     let depth = .3 + .95*sw.power;
     if (sw.power > .95 && spin < 0) depth += .3;
     const dir = -side(slot), p0 = {...this.ball.p};
@@ -328,9 +331,13 @@ class PingPong {
       if (u >= 0 && u <= 1){ arc = lerp(-1.1, 1.0, 1 - Math.pow(1 - u, 2)); fwd = Math.sin(u*Math.PI)*.16; lift = lerp(-.1, .12, u)*Math.sign(P.swingSpin || .01); }
       const dirSign = fore ? 1 : -1;
       P.paddle.position.set(P.pos.x, P.pos.y + lift, P.pos.z - sg*fwd);
-      const yawLive = seat.mo === "m" && !core.pBot(slot) ? -seat.yaw*Math.PI/180*.6 : 0;
-      const pitLive = seat.mo === "m" && !core.pBot(slot) ? -seat.pit*Math.PI/180*.6 : 0;
-      P.paddle.rotation.set(pitLive*sg, (slot === 0 ? Math.PI : 0) + yawLive + arc*.9*dirSign*-1*(slot === 0 ? 1 : -1), fore ? -.35*right(slot) : .35*right(slot), "YXZ");
+      if (seat.mo === "m" && !core.pBot(slot) && seat.q){
+        // motion: the paddle copies the phone 1:1, so the paddle face points wherever the phone screen points
+        P.qPhone.set(seat.q[0], seat.q[1], seat.q[2], seat.q[3]);
+        P.paddle.quaternion.copy(P.qGame).multiply(P.qPhone);
+      } else {
+        P.paddle.rotation.set(0, (slot === 0 ? Math.PI : 0) + arc*.9*dirSign*-1*(slot === 0 ? 1 : -1), fore ? -.35*right(slot) : .35*right(slot), "YXZ");
+      }
       // camera behind each player
       const cam = this.cams[slot];
       cam.userData.x += (P.pos.x*.35 - cam.userData.x)*Math.min(1, dt*2.5);
@@ -354,10 +361,10 @@ class PingPong {
   }
 }
 
-registerGame({
+registerGame({ padMode:"paddle",
   id:"pingpong", name:"Ping Pong", icon:"🏓", tag:"1v1 · split screen", min:1, max:2,
   options:[{key:"to", label:"Points to win", values:[11, 5, 21, 3]}],
-  howto:"Swing your phone like a paddle. The paddle moves to the ball for you, so you only time the swing. Early swings go left, late swings go right, and twisting the phone face aims too. Swing up through the ball for topspin, chop down for slice, swing harder to hit deeper. A yellow glow on the ball means now. No motion sensors? Swipe up on the phone instead.",
+  howto:"Swing your phone like a paddle. The paddle moves to the ball for you and copies your phone's angle, so the ball goes where your screen faces. Turn the phone left or right to aim, then time the swing. Swing up through the ball for topspin, chop down for slice, swing harder to hit deeper. A yellow glow on the ball means now. No motion sensors? Swipe up on the phone instead.",
   pad:"Hold the phone like a paddle handle, screen facing the TV, and tap Recenter. Then swing when the ball reaches you.",
   season:{to:3}, seasonRules:"First to 3 points",
   create(core, opts){ return new PingPong(core, opts); }
